@@ -1,0 +1,8 @@
+{
+	"EncryptionKey" : "<your encryption key>",
+	"Dropbox" : {
+		"ClientID"    : "tzpv39e8hkg06xi",
+		"AccessToken" : "<app access token (for development)>"
+	}
+}
+
