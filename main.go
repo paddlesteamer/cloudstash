@@ -18,7 +18,10 @@ func main() {
 
 	source := source.NewDropboxClient(conf.Dropbox)
 
-	entries := source.ListFolder("/")
+	entries, err := source.ListFolder("/")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	for _, entry := range entries {
 		fmt.Println(entry.Name)

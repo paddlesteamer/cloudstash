@@ -6,5 +6,5 @@ type FolderEntry struct {
 }
 
 type Source interface {
-	ListFolder(string)	[]FolderEntry
+	ListFolder(string)	([]FolderEntry, error)
 }
