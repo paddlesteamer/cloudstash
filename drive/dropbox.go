@@ -16,7 +16,7 @@ type Dropbox struct {
 	Drive
 }
 
-func NewDropboxClient(conf config.DropboxCredentials) *Dropbox {
+func NewDropboxClient(conf *config.DropboxCredentials) *Dropbox {
 	dbxConfig := dropbox.Config{
 		Token: conf.AccessToken,
 		LogLevel: dropbox.LogDebug,

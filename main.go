@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/paddlesteamer/hdn-drv/config"
-	"github.com/paddlesteamer/hdn-drv/drive"
+	"github.com/paddlesteamer/hdn-drv/manager"
 )
 
 func main() {
@@ -16,12 +16,8 @@ func main() {
 
 	fmt.Printf("key: %v, clientID: %v, accessToken: %v\n", conf.EncryptionKey, conf.Dropbox.ClientID, conf.Dropbox.AccessToken)
 
-	drive := drive.NewDropboxClient(conf.Dropbox)
-
-	content, err := drive.GetFile("/a.txt")
+	_, err = manager.NewManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Println(string(content))
 }
