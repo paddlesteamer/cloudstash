@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/paddlesteamer/hdn-drv/config"
-	"github.com/paddlesteamer/hdn-drv/source"
+	"github.com/paddlesteamer/hdn-drv/drive"
 )
 
 func main() {
@@ -16,14 +16,12 @@ func main() {
 
 	fmt.Printf("key: %v, clientID: %v, accessToken: %v\n", conf.EncryptionKey, conf.Dropbox.ClientID, conf.Dropbox.AccessToken)
 
-	source := source.NewDropboxClient(conf.Dropbox)
+	drive := drive.NewDropboxClient(conf.Dropbox)
 
-	entries, err := source.ListFolder("/")
+	content, err := drive.GetFile("/a.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	for _, entry := range entries {
-		fmt.Println(entry.Name)
-	}
+	fmt.Println(string(content))
 }
