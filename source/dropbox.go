@@ -34,16 +34,7 @@ func (dbx *Dropbox) ListFolder(path string) ([]FolderEntry, error) {
 		path = ""
 	}
 
-	args := &files.ListFolderArg{
-		Path: path,
-		Recursive: false,
-		IncludeMediaInfo: false,
-		IncludeDeleted: false,
-		IncludeHasExplicitSharedMembers: false,
-		IncludeMountedFolders: false,
-		IncludeNonDownloadableFiles: true,
-		Limit: 1000,
-	}
+	args := files.NewListFolderArg(path)
 
 	res, err := dbx.client.ListFolder(args)
 	if err != nil {
@@ -52,16 +43,18 @@ func (dbx *Dropbox) ListFolder(path string) ([]FolderEntry, error) {
 
 	list := []FolderEntry{}
 	for _, entry := range res.Entries {
-		typ := fuse.S_IFREG
+		var typ int
+		var name string
 		switch entry.(type) {
 			case *files.FileMetadata:
 				typ = fuse.S_IFREG
+				name = entry.(*files.FileMetadata).Name
 
 			case *files.FolderMetadata:
 				typ = fuse.S_IFDIR
+				name = entry.(*files.FolderMetadata).Name
 
 		}
-		name := entry.(*files.Metadata).Name
 
 		listEntry := FolderEntry{
 			Name: name,
