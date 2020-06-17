@@ -3,6 +3,7 @@
 	"Dropbox" : {
 		"ClientID"    : "tzpv39e8hkg06xi",
 		"AccessToken" : "<app access token (for development)>"
-	}
+	},
+	"DatabaseFile" : "dropbox://hdn-drv.sqlite3"
 }
 

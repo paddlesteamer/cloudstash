@@ -12,8 +12,6 @@ import (
 
 type Dropbox struct {
 	client files.Client
-
-	Drive
 }
 
 func NewDropboxClient(conf *config.DropboxCredentials) *Dropbox {
@@ -27,6 +25,10 @@ func NewDropboxClient(conf *config.DropboxCredentials) *Dropbox {
 	}
 
 	return dbx
+}
+
+func (dbx *Dropbox) GetProviderName() string {
+	return "dropbox"
 }
 
 func (dbx *Dropbox) GetFile(path string) ([]byte, error) {
@@ -45,4 +47,15 @@ func (dbx *Dropbox) GetFile(path string) ([]byte, error) {
 	}
 
 	return content, nil
+}
+
+func (dbx *Dropbox) PutFile(path string, content io.Reader) error {
+	args := files.NewCommitInfo(path)
+
+	_, err := dbx.client.Upload(args, content)
+	if err != nil {
+		return fmt.Errorf("dropbox: unable to upload file %v: %v", path, err)
+	}
+
+	return nil
 }
