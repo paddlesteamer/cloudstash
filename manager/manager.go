@@ -115,6 +115,9 @@ func (m *Manager) getDBConnection() (*db.Client, error) {
 }
 
 func (m *Manager) updateDBFile() error {
+	m.db.mux.Lock()
+	defer m.db.mux.Unlock()
+
 	ior, err := os.Open(m.db.lastFileName)
 	if err != nil {
 		return fmt.Errorf("manager: unable to open db file: %v", err)
