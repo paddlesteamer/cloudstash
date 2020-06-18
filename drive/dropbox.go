@@ -31,22 +31,20 @@ func (dbx *Dropbox) GetProviderName() string {
 	return "dropbox"
 }
 
-func (dbx *Dropbox) GetFile(path string) ([]byte, error) {
+func (dbx *Dropbox) GetFile(path string) (*Metadata, io.ReadCloser, error) {
 	args := files.NewDownloadArg(path)
 
 	metadata, r, err := dbx.client.Download(args)
 	if err != nil {
-		return nil, fmt.Errorf("dropbox: unable to get file %v: %v", path, err)
+		return nil, nil, fmt.Errorf("dropbox: unable to get file %v: %v", path, err)
 	}
 
-	content := make([]byte, metadata.Size)
-
-	_, err = r.Read(content)
-	if err != nil && err != io.EOF {
-		return nil, fmt.Errorf("dropbox: error while reading from file %v: %v", path, err)
+	m := &Metadata{
+		Name: metadata.Name,
+		Size: metadata.Size,
 	}
 
-	return content, nil
+	return m, r, nil
 }
 
 func (dbx *Dropbox) PutFile(path string, content io.Reader) error {

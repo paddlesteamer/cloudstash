@@ -16,8 +16,9 @@ func main() {
 
 	fmt.Printf("key: %v, clientID: %v, accessToken: %v\n", conf.EncryptionKey, conf.Dropbox.ClientID, conf.Dropbox.AccessToken)
 
-	_, err = manager.NewManager(conf)
+	m, err := manager.NewManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer m.Close()
 }

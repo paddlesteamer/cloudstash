@@ -2,35 +2,31 @@ package manager
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/paddlesteamer/hdn-drv/config"
 	"github.com/paddlesteamer/hdn-drv/db"
 	"github.com/paddlesteamer/hdn-drv/drive"
 )
 
-type dbcon struct {
-	client       *db.Client
-
+type dbconn struct {
 	extFilePath  string
 	extDrive     drive.Drive
 
-	lastAccess   time.Time
-	lastFileName string
-	mux          sync.Mutex
+	dbPath       string
+
+	mux          sync.RWMutex
 }
 
 type Manager struct {
 	drives []drive.Drive
 	key    string
-	db     dbcon
+	db     dbconn
 }
-
-const dbconTimeout time.Duration = 1000 * time.Millisecond
 
 func NewManager(conf *config.Configuration) (*Manager, error) {
 	key := conf.EncryptionKey
@@ -47,7 +43,7 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 	}
 
 	var drv drive.Drive = nil
-	for _, d = range drives {
+	for _, d := range drives {
 		if d.GetProviderName() == u.Scheme {
 			drv = d
 			break
@@ -55,14 +51,45 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 	}
 
 	if drv == nil {
-		return nil, fmt.Errorf("manager: couldn't find a drive matching database file schema")
+		return nil, fmt.Errorf("manager: couldn't find a drive matching database file scheme")
 	}
 
-	db := dbcon{
-		client: nil,
+	dbf, err := ioutil.TempFile("/tmp", "hdn-drv-db")
+	if err != nil {
+		return nil, fmt.Errorf("manager: unable to create database file: %v", err)
+	}
+	// defer dbf.Close() close manually, shouldn't be deferred
+
+	dbPath := fmt.Sprintf("/%s", u.Host)
+
+	_, dbr, err := drv.GetFile(u.Host)
+	if err != nil { // TODO: check specific 'not found' error
+		// below is for not found error
+		dbf.Close()
+
+		err = db.InitDB(dbf.Name())
+		if err != nil {
+			return nil, fmt.Errorf("manager: unable to initialize db: %v", err)
+		}
+
+		// TODO: upload db
+
+	} else {
+		defer dbr.Close()
+
+		_, err := io.Copy(dbf, dbr)
+		if err != nil {
+			return nil, fmt.Errorf("manager: unable to copy contents of db to local file: %v", err)
+		}
+
+		dbf.Close()
+	}
+
+	db := dbconn{
 		extDrive: drv,
-		extFilePath: u.Host,
-		lastAccess: time.Time{},
+		extFilePath: dbPath,
+
+		dbPath: dbf.Name(),
 	}
 
 	m := &Manager{
@@ -74,57 +101,6 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 	return m, nil
 }
 
-func (m *Manager) getDBConnection() (*db.Client, error) {
-	m.db.mux.Lock()
-	defer m.db.mux.Unlock()
-
-	if time.Now().Sub(m.db.lastAccess) < dbconTimeout {
-		m.db.lastAccess = time.Now()
-		return m.db.client, nil
-	}
-
-	if m.db.client != nil {
-		m.db.client.Close()
-	}
-
-	f, err := ioutil.TempFile("", "hdn-drv")
-	if err != nil {
-		return nil, fmt.Errorf("maanger: unable to create temporary file: %v", err)
-	}
-
-	firstTime := false
-
-	content, err := m.db.extDrive.GetFile(m.db.extFilePath)
-	if err != nil { // file doesn't exist (TODO: check error type, maybe file exists but net is down)
-		f.Write(content)
-		f.Close()
-
-		firstTime = true
-	}
-
-	m.db.lastFileName = f.Name()
-	m.db.client, _ = db.NewClient(m.db.lastFileName)
-	m.db.lastAccess = time.Now()
-
-	if firstTime {
-		m.db.extDrive.PutFile(m.db.extFilePath, f)
-		f.Close()
-	}
-
-	return m.db.client, nil
-}
-
-func (m *Manager) updateDBFile() error {
-	m.db.mux.Lock()
-	defer m.db.mux.Unlock()
-
-	ior, err := os.Open(m.db.lastFileName)
-	if err != nil {
-		return fmt.Errorf("manager: unable to open db file: %v", err)
-	}
-	defer ior.Close()
-
-	m.db.extDrive.PutFile(m.db.extFilePath, ior)
-
-	return nil
+func (m *Manager) Close() {
+	os.Remove(m.db.dbPath)
 }
