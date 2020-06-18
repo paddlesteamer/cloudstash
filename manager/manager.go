@@ -86,10 +86,10 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 	}
 
 	db := dbconn{
-		extDrive: drv,
+		extDrive:    drv,
 		extFilePath: dbPath,
 
-		dbPath: dbf.Name(),
+		dbPath:      dbf.Name(),
 	}
 
 	m := &Manager{
