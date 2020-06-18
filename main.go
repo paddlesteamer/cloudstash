@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/paddlesteamer/hdn-drv/config"
 	"github.com/paddlesteamer/hdn-drv/manager"
@@ -21,4 +22,8 @@ func main() {
 		log.Fatal(err)
 	}
 	defer m.Close()
+
+	for {
+		time.Sleep(time.Second)
+	}
 }

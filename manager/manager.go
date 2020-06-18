@@ -7,17 +7,19 @@ import (
 	"net/url"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/paddlesteamer/hdn-drv/config"
 	"github.com/paddlesteamer/hdn-drv/db"
 	"github.com/paddlesteamer/hdn-drv/drive"
 )
 
-type dbconn struct {
+type dbStat struct {
 	extFilePath  string
 	extDrive     drive.Drive
 
 	dbPath       string
+	hash         string
 
 	mux          sync.RWMutex
 }
@@ -25,8 +27,10 @@ type dbconn struct {
 type Manager struct {
 	drives []drive.Drive
 	key    string
-	db     dbconn
+	db     dbStat
 }
+
+const checkInterval time.Duration = 5 * time.Second
 
 func NewManager(conf *config.Configuration) (*Manager, error) {
 	key := conf.EncryptionKey
@@ -92,15 +96,23 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 
 		_, err := io.Copy(dbf, dbr)
 		if err != nil {
+			os.Remove(dbPath)
 			return nil, fmt.Errorf("manager: unable to copy contents of db to local file: %v", err)
 		}
 	}
 
-	db := dbconn{
+	hash, err := drv.ComputeHash(dbPath)
+	if err != nil {
+		os.Remove(dbPath)
+		return nil, fmt.Errorf("manager: unable to compute hash: %v", err)
+	}
+
+	db := dbStat{
 		extDrive:    drv,
 		extFilePath: dbExtPath,
 
 		dbPath:      dbPath,
+		hash:        hash,
 	}
 
 	m := &Manager{
@@ -109,9 +121,31 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		db: db,
 	}
 
+	go m.checkChanges()
+
 	return m, nil
 }
 
 func (m *Manager) Close() {
 	os.Remove(m.db.dbPath)
+}
+
+func (m *Manager) checkChanges() {
+
+	for {
+		time.Sleep(checkInterval)
+
+		mdata, err := m.db.extDrive.GetFileMetadata(m.db.extFilePath)
+		if err != nil {
+			fmt.Printf("manager: %v\n", err)
+			continue
+		}
+
+		if mdata.Hash != m.db.hash {
+			fmt.Printf("Different hash %v %v\n", mdata.Hash, m.db.hash)
+		} else {
+			fmt.Printf("Hashes are same: %v\n", mdata.Hash)
+		}
+	}
+
 }
