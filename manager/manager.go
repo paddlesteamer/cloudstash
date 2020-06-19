@@ -141,11 +141,37 @@ func (m *Manager) checkChanges() {
 			continue
 		}
 
-		if mdata.Hash != m.db.hash {
-			fmt.Printf("Different hash %v %v\n", mdata.Hash, m.db.hash)
-		} else {
-			fmt.Printf("Hashes are same: %v\n", mdata.Hash)
+		m.db.mux.Lock()
+		if mdata.Hash == m.db.hash {
+			m.db.mux.Unlock()
+			continue
 		}
+		
+		_, dbr, err := m.db.extDrive.GetFile(m.db.extFilePath)
+		if err != nil {
+			fmt.Printf("manager: unable to get updated db file: %v", err)
+			m.db.mux.Unlock()
+			continue
+		}
+
+		dbf, err := os.Open(m.db.dbPath)
+		if err != nil {
+			fmt.Printf("manager: unable to open db: %v", err)
+			m.db.mux.Unlock()
+			continue
+		}
+
+		_, err = io.Copy(dbf, dbr)
+		if err != nil {
+			fmt.Printf("manager: unable to copy contents of updated db file to local file: %v", err)
+			m.db.mux.Unlock()
+			continue
+		}
+		
+		dbr.Close()
+		dbf.Close()
+
+		m.db.mux.Unlock()
 	}
 
 }
