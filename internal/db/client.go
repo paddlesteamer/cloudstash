@@ -75,7 +75,7 @@ func InitDB(path string) error {
 	return nil
 }
 
-// NewClient...
+// NewClient ...
 // Returns a new database connection
 func NewClient(path string) (*Client, error) {
 	db, err := sql.Open("sqlite3", path)
@@ -89,7 +89,7 @@ func NewClient(path string) (*Client, error) {
 	return c, nil
 }
 
-// Close...
+// Close ...
 // Closes database connection
 func (c *Client) Close() {
 	c.db.Close()
