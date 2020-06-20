@@ -24,7 +24,7 @@ var tableSchemas = [...]string{
 		UNIQUE("name", "parent"),
 		FOREIGN KEY("parent") REFERENCES folders("id")
 	);`,
-	fmt.Sprintf(`INSERT INTO files(inode, name, mode, parent, type) VALUES (1, "", 493, 1, %d);`, common.DRV_FOLDER), // root folder with mode 0755
+	fmt.Sprintf(`INSERT INTO files(inode, name, mode, parent, type) VALUES (1, "", 493, 0, %d);`, common.DRV_FOLDER), // root folder with mode 0755
 }
 
 // InitDB initializes tables
@@ -91,11 +91,51 @@ func (c *Client) Get(inode uint64) (*common.Metadata, error) {
 	return c.parseRow(row)
 }
 
+func (c *Client) GetChildren(inode uint64) ([]common.Metadata, error) {
+	query, err := c.db.Prepare("SELECT * FROM files WHERE parent=?")
+	if err != nil {
+		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	row, err := query.Query(inode)
+	if err != nil {
+		return nil, fmt.Errorf("there is an error in query: %v", err)
+	}
+	defer row.Close()
+
+	mdList := []common.Metadata{}
+	for row.Next() {
+		md, err := c.parseCurrentRow(row)
+		if err != nil {
+			return nil, err
+		}
+
+		mdList = append(mdList, *md)
+	}
+
+	return mdList, nil
+}
+
 func (c *Client) parseRow(row *sql.Row) (*common.Metadata, error) {
 	md := &common.Metadata{}
 
 	err := row.Scan(&md.Inode, &md.Name, &md.URL,
-		&md.Size, &md.Mode, &md.Type, &md.Parent)
+		&md.Size, &md.Mode, &md.Parent, &md.Type)
+	switch {
+	case err == sql.ErrNoRows:
+		return nil, common.ErrNotFound
+	case err != nil:
+		return nil, fmt.Errorf("there is an error in query: %v", err)
+	}
+
+	return md, nil
+}
+
+func (c *Client) parseCurrentRow(row *sql.Rows) (*common.Metadata, error) {
+	md := &common.Metadata{}
+
+	err := row.Scan(&md.Inode, &md.Name, &md.URL,
+		&md.Size, &md.Mode, &md.Parent, &md.Type)
 	switch {
 	case err == sql.ErrNoRows:
 		return nil, common.ErrNotFound
