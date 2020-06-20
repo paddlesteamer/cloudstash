@@ -109,13 +109,13 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 	m := &Manager{
 		drives: drives,
 		key:    key,
-        db :    dbStat{
-            extDrive: drv,
-            extPath:  dbExtPath,
-    
-            dbPath: dbPath,
-            hash:   hash,
-        },
+		db: dbStat{
+			extDrive: drv,
+			extPath:  dbExtPath,
+
+			dbPath: dbPath,
+			hash:   hash,
+		},
 	}
 
 	go m.checkChanges()
