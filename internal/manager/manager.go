@@ -9,19 +9,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/paddlesteamer/hdn-drv/config"
-	"github.com/paddlesteamer/hdn-drv/db"
-	"github.com/paddlesteamer/hdn-drv/drive"
+	"github.com/paddlesteamer/hdn-drv/internal/config"
+	"github.com/paddlesteamer/hdn-drv/internal/db"
+	"github.com/paddlesteamer/hdn-drv/internal/drive"
 )
 
 type dbStat struct {
-	extFilePath  string
-	extDrive     drive.Drive
-
-	dbPath       string
-	hash         string
-
-	mux          sync.RWMutex
+	extFilePath string
+	extDrive    drive.Drive
+	dbPath      string
+	hash        string
+	mux         sync.RWMutex
 }
 
 type Manager struct {
@@ -111,14 +109,15 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		extDrive:    drv,
 		extFilePath: dbExtPath,
 
-		dbPath:      dbPath,
-		hash:        hash,
+		dbPath: dbPath,
+		hash:   hash,
 	}
 
+	// @fixme: literal copies lock value from db
 	m := &Manager{
 		drives: drives,
-		key: key,
-		db: db,
+		key:    key,
+		db:     db,
 	}
 
 	go m.checkChanges()
@@ -131,7 +130,6 @@ func (m *Manager) Close() {
 }
 
 func (m *Manager) checkChanges() {
-
 	for {
 		time.Sleep(checkInterval)
 
@@ -146,32 +144,31 @@ func (m *Manager) checkChanges() {
 			m.db.mux.Unlock()
 			continue
 		}
-		
-		_, dbr, err := m.db.extDrive.GetFile(m.db.extFilePath)
+
+		_, reader, err := m.db.extDrive.GetFile(m.db.extFilePath)
 		if err != nil {
 			fmt.Printf("manager: unable to get updated db file: %v", err)
 			m.db.mux.Unlock()
 			continue
 		}
 
-		dbf, err := os.Open(m.db.dbPath)
+		file, err := os.Open(m.db.dbPath)
 		if err != nil {
 			fmt.Printf("manager: unable to open db: %v", err)
 			m.db.mux.Unlock()
 			continue
 		}
 
-		_, err = io.Copy(dbf, dbr)
+		_, err = io.Copy(file, reader)
 		if err != nil {
 			fmt.Printf("manager: unable to copy contents of updated db file to local file: %v", err)
 			m.db.mux.Unlock()
 			continue
 		}
-		
-		dbr.Close()
-		dbf.Close()
+
+		reader.Close()
+		file.Close()
 
 		m.db.mux.Unlock()
 	}
-
 }
