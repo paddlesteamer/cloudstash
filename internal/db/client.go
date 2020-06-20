@@ -12,19 +12,20 @@ type Client struct{}
 var tableSchemas = [...]string{
 	`CREATE TABLE folders (
 		"id"     INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-		"name"   TEXT,
-		"parent" INTEGER,
+		"name"   TEXT NOT NULL,
+		"parent" INTEGER NOT NULL,
 		FOREIGN KEY("parent") REFERENCES folders("id")
 	);`,
 	`CREATE TABLE files (
 		"id"     INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-		"name"   TEXT,
-		"url"    TEXT,
-		"size"   INTEGER,
-		"mode"   INTEGER,
-		"parent" INTEGER,
+		"name"   TEXT NOT NULL,
+		"url"    TEXT NOT NULL,
+		"size"   INTEGER NOT NULL,
+		"mode"   INTEGER NOT NULL,
+		"parent" INTEGER NOT NULL,
 		FOREIGN KEY("parent") REFERENCES folders("id")
 	);`,
+	`INSERT INTO folders VALUES (1, "", 1);`, // root folder
 }
 
 // InitDB ...
