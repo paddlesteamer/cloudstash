@@ -105,19 +105,17 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		return nil, fmt.Errorf("manager: unable to compute hash: %v", err)
 	}
 
-	db := dbStat{
-		extDrive: drv,
-		extPath:  dbExtPath,
-
-		dbPath: dbPath,
-		hash:   hash,
-	}
-
 	// @fixme: literal copies lock value from db
 	m := &Manager{
 		drives: drives,
 		key:    key,
-		db:     db,
+        db :    dbStat{
+            extDrive: drv,
+            extPath:  dbExtPath,
+    
+            dbPath: dbPath,
+            hash:   hash,
+        }
 	}
 
 	go m.checkChanges()
