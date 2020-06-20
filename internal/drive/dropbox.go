@@ -101,7 +101,7 @@ func (d *Dropbox) ComputeHash(path string) (string, error) {
 		h := sha256.New()
 		_, err := io.CopyN(h, f, cpSize)
 		if err != nil && err != io.EOF {
-			return "", fmt.Errorf("could not copy btyes from  %v: %v", path, err)
+			return "", fmt.Errorf("could not copy btyes from  %s: %v", path, err)
 		}
 
 		res = append(res, h.Sum(nil)...)
