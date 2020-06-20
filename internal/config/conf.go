@@ -27,7 +27,7 @@ func ParseConfig(path string) (*Configuration, error) {
 	decoder := json.NewDecoder(f)
 	conf := Configuration{}
 
-	err = decoder.Decode(&conf);
+	err = decoder.Decode(&conf)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse config json: %v", err)
 	}

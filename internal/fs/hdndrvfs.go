@@ -8,7 +8,7 @@ type HdnDrvFs struct {
 
 func (r *HdnDrvFs) GetAttr(ino int64, info *fuse.FileInfo) (*fuse.InoAttr, fuse.Status) {
 	inode := &fuse.InoAttr{
-		Ino: ino,
+		Ino:     ino,
 		Timeout: 1.0,
 	}
 

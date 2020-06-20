@@ -7,7 +7,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-type Client struct {}
+type Client struct{}
 
 // InitDB ...
 // Initializes tables
@@ -34,7 +34,7 @@ func InitDB(path string) error {
 
 	_, err = st.Exec()
 	if err != nil {
-		return fmt.Errorf("db: unable to execute initialization query: %v")
+		return fmt.Errorf("db: unable to execute initialization query: %v", err)
 	}
 
 	return nil
