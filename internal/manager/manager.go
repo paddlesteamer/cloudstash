@@ -106,7 +106,6 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		return nil, fmt.Errorf("manager: unable to compute hash: %v", err)
 	}
 
-	// @fixme: literal copies lock value from db
 	m := &Manager{
 		drives: drives,
 		key:    key,
@@ -129,10 +128,14 @@ func (m *Manager) Close() {
 }
 
 func (m *Manager) Lookup(parent uint64, name string) (*Metadata, error) {
+	m.rLock()
+	defer m.rUnlock()
+
 	db, err := m.getDBClient()
 	if err != nil {
 		return nil, fmt.Errorf("manager: unable to connect to database: %v", err)
 	}
+	defer db.Close()
 
 	file, err := db.SearchInFiles(parent, name)
 	switch {
@@ -164,37 +167,37 @@ func (m *Manager) checkChanges() {
 			continue
 		}
 
-		m.db.mux.Lock()
+		m.wLock()
 		if mdata.Hash == m.db.hash {
-			m.db.mux.Unlock()
+			m.wUnlock()
 			continue
 		}
 
 		_, reader, err := m.db.extDrive.GetFile(m.db.extPath)
 		if err != nil {
 			fmt.Printf("manager: unable to get updated db file: %v", err)
-			m.db.mux.Unlock()
+			m.wUnlock()
 			continue
 		}
 
 		file, err := os.Open(m.db.dbPath)
 		if err != nil {
 			fmt.Printf("manager: unable to open db: %v", err)
-			m.db.mux.Unlock()
+			m.wUnlock()
 			continue
 		}
 
 		_, err = io.Copy(file, reader)
 		if err != nil {
 			fmt.Printf("manager: unable to copy contents of updated db file to local file: %v", err)
-			m.db.mux.Unlock()
+			m.wUnlock()
 			continue
 		}
 
 		reader.Close()
 		file.Close()
 
-		m.db.mux.Unlock()
+		m.wUnlock()
 	}
 }
 
@@ -202,4 +205,20 @@ func (m *Manager) getDBClient() (*db.Client, error) {
 	cli, err := db.NewClient(m.db.dbPath)
 
 	return cli, err
+}
+
+func (m *Manager) wLock() {
+	m.db.mux.Lock()
+}
+
+func (m *Manager) wUnlock() {
+	m.db.mux.Unlock()
+}
+
+func (m *Manager) rLock() {
+	m.db.mux.RLock()
+}
+
+func (m *Manager) rUnlock() {
+	m.db.mux.RUnlock()
 }
