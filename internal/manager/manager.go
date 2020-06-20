@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/paddlesteamer/hdn-drv/internal/common"
 	"github.com/paddlesteamer/hdn-drv/internal/config"
 	"github.com/paddlesteamer/hdn-drv/internal/db"
 	"github.com/paddlesteamer/hdn-drv/internal/drive"
@@ -56,19 +57,19 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		return nil, fmt.Errorf("manager: couldn't find a drive matching database file scheme")
 	}
 
-	dbf, err := ioutil.TempFile("/tmp", "hdn-drv-db")
+	file, err := ioutil.TempFile("/tmp", "hdn-drv-db")
 	if err != nil {
 		return nil, fmt.Errorf("manager: unable to create database file: %v", err)
 	}
 	// defer dbf.Close() close manually, at least shouldn't be deferred here
 
 	dbExtPath := fmt.Sprintf("/%s", u.Host)
-	dbPath := dbf.Name()
+	dbPath := file.Name()
 
-	_, dbr, err := drv.GetFile(u.Host)
+	_, reader, err := drv.GetFile(u.Host)
 	if err != nil { // TODO: check specific 'not found' error
 		// below is for not found error
-		dbf.Close()
+		file.Close()
 
 		err = db.InitDB(dbPath)
 		if err != nil {
@@ -89,10 +90,10 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		}
 
 	} else {
-		defer dbr.Close()
-		defer dbf.Close()
+		defer reader.Close()
+		defer file.Close()
 
-		_, err := io.Copy(dbf, dbr)
+		_, err := io.Copy(file, reader)
 		if err != nil {
 			os.Remove(dbPath)
 			return nil, fmt.Errorf("manager: unable to copy contents of db to local file: %v", err)
@@ -125,6 +126,32 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 
 func (m *Manager) Close() {
 	os.Remove(m.db.dbPath)
+}
+
+func (m *Manager) Lookup(parent uint64, name string) (*Metadata, error) {
+	db, err := m.getDBClient()
+	if err != nil {
+		return nil, fmt.Errorf("manager: unable to connect to database: %v", err)
+	}
+
+	file, err := db.SearchInFiles(parent, name)
+	switch {
+	case err == nil:
+		return newFileMetadata(file), nil
+	case err != nil && err != common.ErrNotFound:
+		return nil, fmt.Errorf("manager: something went wrong with query: %v", err)
+	}
+
+	folder, err := db.SearchInFolders(parent, name)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf("manager: something went wrong with query: %v", err)
+	}
+
+	return newFolderMetadata(folder), nil
 }
 
 func (m *Manager) checkChanges() {
@@ -169,4 +196,10 @@ func (m *Manager) checkChanges() {
 
 		m.db.mux.Unlock()
 	}
+}
+
+func (m *Manager) getDBClient() (*db.Client, error) {
+	cli, err := db.NewClient(m.db.dbPath)
+
+	return cli, err
 }

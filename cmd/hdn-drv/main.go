@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/paddlesteamer/hdn-drv/internal/common"
 	"github.com/paddlesteamer/hdn-drv/internal/config"
 	"github.com/paddlesteamer/hdn-drv/internal/manager"
 )
@@ -27,6 +28,16 @@ func main() {
 		log.Fatal(err)
 	}
 	defer m.Close()
+
+	_, err = m.Lookup(1, ".Trash")
+	switch {
+	case err == nil:
+		fmt.Printf("file is found")
+	case err == common.ErrNotFound:
+		fmt.Printf("file doesn't exist\n")
+	default:
+		fmt.Printf("error on lookup: %v", err)
+	}
 
 	for {
 		time.Sleep(time.Second)
