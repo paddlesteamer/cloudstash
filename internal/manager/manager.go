@@ -115,7 +115,7 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
     
             dbPath: dbPath,
             hash:   hash,
-        }
+        },
 	}
 
 	go m.checkChanges()
