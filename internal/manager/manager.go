@@ -73,20 +73,20 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 
 		err = db.InitDB(dbPath)
 		if err != nil {
-			return nil, fmt.Errorf("manager: unable to initialize db: %v", err)
+			return nil, fmt.Errorf("couldn't initialize db: %v", err)
 		}
 
 		dbf, err := os.Open(dbPath)
 		if err != nil {
 			os.Remove(dbPath)
-			return nil, fmt.Errorf("manager: unable to open intitialized db: %v", err)
+			return nil, fmt.Errorf("couldn't open intitialized db: %v", err)
 		}
 		defer dbf.Close()
 
 		err = drv.PutFile(dbExtPath, dbf)
 		if err != nil {
 			os.Remove(dbPath)
-			return nil, fmt.Errorf("manager: unable to upload initialiezed db: %v", err)
+			return nil, fmt.Errorf("couldn't upload initialiezed db: %v", err)
 		}
 
 	} else {
@@ -96,14 +96,14 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		_, err := io.Copy(file, reader)
 		if err != nil {
 			os.Remove(dbPath)
-			return nil, fmt.Errorf("manager: unable to copy contents of db to local file: %v", err)
+			return nil, fmt.Errorf("couldn't copy contents of db to local file: %v", err)
 		}
 	}
 
 	hash, err := drv.ComputeHash(dbPath)
 	if err != nil {
 		os.Remove(dbPath)
-		return nil, fmt.Errorf("manager: unable to compute hash: %v", err)
+		return nil, fmt.Errorf("couldn't compute hash: %v", err)
 	}
 
 	m := &Manager{
@@ -127,34 +127,48 @@ func (m *Manager) Close() {
 	os.Remove(m.db.dbPath)
 }
 
-func (m *Manager) Lookup(parent uint64, name string) (*Metadata, error) {
+func (m *Manager) Lookup(parent uint64, name string) (*common.Metadata, error) {
 	m.rLock()
 	defer m.rUnlock()
 
 	db, err := m.getDBClient()
 	if err != nil {
-		return nil, fmt.Errorf("manager: unable to connect to database: %v", err)
+		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
 	defer db.Close()
 
-	file, err := db.SearchInFiles(parent, name)
-	switch {
-	case err == nil:
-		return newFileMetadata(file), nil
-	case err != nil && err != common.ErrNotFound:
-		return nil, fmt.Errorf("manager: something went wrong with query: %v", err)
-	}
-
-	folder, err := db.SearchInFolders(parent, name)
+	md, err := db.Search(parent, name)
 	if err != nil {
 		if err == common.ErrNotFound {
 			return nil, err
 		}
 
-		return nil, fmt.Errorf("manager: something went wrong with query: %v", err)
+		return nil, fmt.Errorf("something went wrong with query: %v", err)
 	}
 
-	return newFolderMetadata(folder), nil
+	return md, nil
+}
+
+func (m *Manager) GetMetadata(inode uint64) (*common.Metadata, error) {
+	m.rLock()
+	defer m.rUnlock()
+
+	db, err := m.getDBClient()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't connect to database: %v", err)
+	}
+	defer db.Close()
+
+	md, err := db.Get(inode)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf("something went wrong with query: %v", err)
+	}
+
+	return md, nil
 }
 
 func (m *Manager) checkChanges() {
@@ -163,7 +177,7 @@ func (m *Manager) checkChanges() {
 
 		mdata, err := m.db.extDrive.GetFileMetadata(m.db.extPath)
 		if err != nil {
-			fmt.Printf("manager: %v\n", err)
+			fmt.Printf("%v\n", err)
 			continue
 		}
 
@@ -175,21 +189,21 @@ func (m *Manager) checkChanges() {
 
 		_, reader, err := m.db.extDrive.GetFile(m.db.extPath)
 		if err != nil {
-			fmt.Printf("manager: unable to get updated db file: %v", err)
+			fmt.Printf("couldn't get updated db file: %v", err)
 			m.wUnlock()
 			continue
 		}
 
 		file, err := os.Open(m.db.dbPath)
 		if err != nil {
-			fmt.Printf("manager: unable to open db: %v", err)
+			fmt.Printf("couldn't open db: %v", err)
 			m.wUnlock()
 			continue
 		}
 
 		_, err = io.Copy(file, reader)
 		if err != nil {
-			fmt.Printf("manager: unable to copy contents of updated db file to local file: %v", err)
+			fmt.Printf("couldn't copy contents of updated db file to local file: %v", err)
 			m.wUnlock()
 			continue
 		}

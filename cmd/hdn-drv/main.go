@@ -32,13 +32,22 @@ func main() {
 	_, err = m.Lookup(1, ".Trash")
 	switch {
 	case err == nil:
-		fmt.Printf("file is found")
+		fmt.Printf("file is found\n")
+	case err == common.ErrNotFound:
+		fmt.Printf("file doesn't exist\n")
+	default:
+		fmt.Printf("error on lookup: %v\n", err)
+	}
+
+	md, err := m.GetMetadata(1)
+	switch {
+	case err == nil:
+		fmt.Printf("Inode: %d\n", md.Inode)
 	case err == common.ErrNotFound:
 		fmt.Printf("file doesn't exist\n")
 	default:
 		fmt.Printf("error on lookup: %v", err)
 	}
-
 	for {
 		time.Sleep(time.Second)
 	}
