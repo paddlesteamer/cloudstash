@@ -37,7 +37,6 @@ func InitDB(path string) error {
 	}
 	defer db.Close()
 
-
 	for _, sqlStr := range tableSchemas {
 		st, err := db.Prepare(sqlStr)
 		if err != nil {
