@@ -15,11 +15,11 @@ import (
 )
 
 type dbStat struct {
-	extFilePath string
-	extDrive    drive.Drive
-	dbPath      string
-	hash        string
-	mux         sync.RWMutex
+	extPath  string
+	extDrive drive.Drive
+	dbPath   string
+	hash     string
+	mux      sync.RWMutex
 }
 
 type Manager struct {
@@ -106,8 +106,8 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 	}
 
 	db := dbStat{
-		extDrive:    drv,
-		extFilePath: dbExtPath,
+		extDrive: drv,
+		extPath:  dbExtPath,
 
 		dbPath: dbPath,
 		hash:   hash,
@@ -133,7 +133,7 @@ func (m *Manager) checkChanges() {
 	for {
 		time.Sleep(checkInterval)
 
-		mdata, err := m.db.extDrive.GetFileMetadata(m.db.extFilePath)
+		mdata, err := m.db.extDrive.GetFileMetadata(m.db.extPath)
 		if err != nil {
 			fmt.Printf("manager: %v\n", err)
 			continue
@@ -145,7 +145,7 @@ func (m *Manager) checkChanges() {
 			continue
 		}
 
-		_, reader, err := m.db.extDrive.GetFile(m.db.extFilePath)
+		_, reader, err := m.db.extDrive.GetFile(m.db.extPath)
 		if err != nil {
 			fmt.Printf("manager: unable to get updated db file: %v", err)
 			m.db.mux.Unlock()
