@@ -9,7 +9,7 @@ import (
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files"
 
-	"github.com/paddlesteamer/hdn-drv/config"
+	"github.com/paddlesteamer/hdn-drv/internal/config"
 )
 
 type Dropbox struct {
@@ -18,7 +18,7 @@ type Dropbox struct {
 
 func NewDropboxClient(conf *config.DropboxCredentials) *Dropbox {
 	dbxConfig := dropbox.Config{
-		Token: conf.AccessToken,
+		Token:    conf.AccessToken,
 		LogLevel: dropbox.LogDebug,
 	}
 
@@ -81,7 +81,7 @@ func (dbx *Dropbox) GetFileMetadata(path string) (*Metadata, error) {
 }
 
 // ComputeHash ...
-// Computes content hash value according to 
+// Computes content hash value according to
 // https://www.dropbox.com/developers/reference/content-hash
 func (dbx *Dropbox) ComputeHash(path string) (string, error) {
 	f, err := os.Open(path)
@@ -98,7 +98,7 @@ func (dbx *Dropbox) ComputeHash(path string) (string, error) {
 	bytesLeft := fi.Size()
 	res := []byte{}
 	var cpSize int64 = 4 * 1024 * 1024
-	
+
 	for bytesLeft > 0 {
 		h := sha256.New()
 
