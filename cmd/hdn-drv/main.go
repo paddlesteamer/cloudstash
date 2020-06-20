@@ -46,8 +46,19 @@ func main() {
 	case err == common.ErrNotFound:
 		fmt.Printf("file doesn't exist\n")
 	default:
-		fmt.Printf("error on lookup: %v", err)
+		fmt.Printf("error on lookup: %v\n", err)
 	}
+
+	mdList, err := m.GetDirectoryContent(1)
+	switch {
+	case err == nil:
+		fmt.Printf("Size: %d\n", len(mdList))
+	case err == common.ErrNotFound:
+		fmt.Printf("directory doesn't exist\n")
+	default:
+		fmt.Printf("error on lookup: %v\n", err)
+	}
+
 	for {
 		time.Sleep(time.Second)
 	}

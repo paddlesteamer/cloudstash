@@ -42,7 +42,7 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 
 	u, err := url.Parse(conf.DatabaseFile)
 	if err != nil {
-		return nil, fmt.Errorf("manager: unable to parse database file url: %v", err)
+		return nil, fmt.Errorf("couldn't parse database file url: %v", err)
 	}
 
 	var drv drive.Drive = nil
@@ -54,7 +54,7 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 	}
 
 	if drv == nil {
-		return nil, fmt.Errorf("manager: couldn't find a drive matching database file scheme")
+		return nil, fmt.Errorf("couldn't find a drive matching database file scheme")
 	}
 
 	file, err := ioutil.TempFile("/tmp", "hdn-drv-db")
@@ -169,6 +169,37 @@ func (m *Manager) GetMetadata(inode uint64) (*common.Metadata, error) {
 	}
 
 	return md, nil
+}
+
+func (m *Manager) GetDirectoryContent(inode uint64) ([]common.Metadata, error) {
+	m.rLock()
+	defer m.rUnlock()
+
+	db, err := m.getDBClient()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't connect to database: %v", err)
+	}
+	defer db.Close()
+
+	md, err := db.Get(inode)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf("something went wrong with query: %v", err)
+	}
+
+	if md.Type != common.DRV_FOLDER {
+		return nil, fmt.Errorf("the requested inode is not a directory: %d", md.Type)
+	}
+
+	mdList, err := db.GetChildren(inode)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get children of %d: %v", inode, err)
+	}
+
+	return mdList, nil
 }
 
 func (m *Manager) checkChanges() {
