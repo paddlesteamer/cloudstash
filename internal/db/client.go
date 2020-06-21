@@ -75,7 +75,15 @@ func (c *Client) Search(parent uint64, name string) (*common.Metadata, error) {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
 	}
 
-	row := query.QueryRow(parent, name)
+	row, err := query.Query(parent, name)
+	if err != nil {
+		return nil, fmt.Errorf("there is an error in query: %v", err)
+	}
+	defer row.Close()
+
+	if !row.Next() {
+		return nil, common.ErrNotFound
+	}
 
 	return c.parseRow(row)
 }
@@ -86,7 +94,15 @@ func (c *Client) Get(inode uint64) (*common.Metadata, error) {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
 	}
 
-	row := query.QueryRow(inode)
+	row, err := query.Query(inode)
+	if err != nil {
+		return nil, fmt.Errorf("there is an error in query: %v", err)
+	}
+	defer row.Close()
+
+	if !row.Next() {
+		return nil, common.ErrNotFound
+	}
 
 	return c.parseRow(row)
 }
@@ -105,7 +121,7 @@ func (c *Client) GetChildren(inode uint64) ([]common.Metadata, error) {
 
 	mdList := []common.Metadata{}
 	for row.Next() {
-		md, err := c.parseCurrentRow(row)
+		md, err := c.parseRow(row)
 		if err != nil {
 			return nil, err
 		}
@@ -116,31 +132,13 @@ func (c *Client) GetChildren(inode uint64) ([]common.Metadata, error) {
 	return mdList, nil
 }
 
-func (c *Client) parseRow(row *sql.Row) (*common.Metadata, error) {
+func (c *Client) parseRow(row *sql.Rows) (*common.Metadata, error) {
 	md := &common.Metadata{}
 
 	err := row.Scan(&md.Inode, &md.Name, &md.URL,
 		&md.Size, &md.Mode, &md.Parent, &md.Type)
-	switch {
-	case err == sql.ErrNoRows:
-		return nil, common.ErrNotFound
-	case err != nil:
-		return nil, fmt.Errorf("there is an error in query: %v", err)
-	}
-
-	return md, nil
-}
-
-func (c *Client) parseCurrentRow(row *sql.Rows) (*common.Metadata, error) {
-	md := &common.Metadata{}
-
-	err := row.Scan(&md.Inode, &md.Name, &md.URL,
-		&md.Size, &md.Mode, &md.Parent, &md.Type)
-	switch {
-	case err == sql.ErrNoRows:
-		return nil, common.ErrNotFound
-	case err != nil:
-		return nil, fmt.Errorf("there is an error in query: %v", err)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse row: %v", err)
 	}
 
 	return md, nil
