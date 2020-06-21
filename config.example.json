@@ -4,6 +4,7 @@
 		"ClientID"    : "tzpv39e8hkg06xi",
 		"AccessToken" : "<app access token (for development)>"
 	},
-	"DatabaseFile" : "dropbox://hdn-drv.sqlite3"
+	"DatabaseFile" : "dropbox://hdn-drv.sqlite3",
+	"MountPoint"   : "/mnt"
 }
 
