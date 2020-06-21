@@ -69,7 +69,7 @@ func (c *Client) Close() {
 	c.db.Close()
 }
 
-func (c *Client) Search(parent uint64, name string) (*common.Metadata, error) {
+func (c *Client) Search(parent int64, name string) (*common.Metadata, error) {
 	query, err := c.db.Prepare("SELECT * FROM files WHERE name=? and parent=?")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
@@ -88,7 +88,7 @@ func (c *Client) Search(parent uint64, name string) (*common.Metadata, error) {
 	return c.parseRow(row)
 }
 
-func (c *Client) Get(inode uint64) (*common.Metadata, error) {
+func (c *Client) Get(inode int64) (*common.Metadata, error) {
 	query, err := c.db.Prepare("SELECT * FROM files WHERE inode=?")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
@@ -107,7 +107,7 @@ func (c *Client) Get(inode uint64) (*common.Metadata, error) {
 	return c.parseRow(row)
 }
 
-func (c *Client) GetChildren(inode uint64) ([]common.Metadata, error) {
+func (c *Client) GetChildren(inode int64) ([]common.Metadata, error) {
 	query, err := c.db.Prepare("SELECT * FROM files WHERE parent=?")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
