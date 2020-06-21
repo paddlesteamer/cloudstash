@@ -7,6 +7,6 @@ type Metadata struct {
 	Size   int64
 	Mode   int
 	Type   int
-	Parent uint64
+	Parent int64
 	NLink  int
 }

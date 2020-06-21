@@ -171,7 +171,7 @@ func (m *Manager) GetMetadata(inode int64) (*common.Metadata, error) {
 	return md, nil
 }
 
-func (m *Manager) GetDirectoryContent(inode int64) ([]common.Metadata, error) {
+func (m *Manager) GetDirectoryContent(parent int64) ([]common.Metadata, error) {
 	m.rLock()
 	defer m.rUnlock()
 
@@ -181,7 +181,7 @@ func (m *Manager) GetDirectoryContent(inode int64) ([]common.Metadata, error) {
 	}
 	defer db.Close()
 
-	md, err := db.Get(inode)
+	md, err := db.Get(parent)
 	if err != nil {
 		if err == common.ErrNotFound {
 			return nil, err
@@ -194,9 +194,9 @@ func (m *Manager) GetDirectoryContent(inode int64) ([]common.Metadata, error) {
 		return nil, fmt.Errorf("the requested inode is not a directory: %d", md.Type)
 	}
 
-	mdList, err := db.GetChildren(inode)
+	mdList, err := db.GetChildren(parent)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get children of %d: %v", inode, err)
+		return nil, fmt.Errorf("couldn't get children of %d: %v", parent, err)
 	}
 
 	return mdList, nil
