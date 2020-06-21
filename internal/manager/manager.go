@@ -127,7 +127,7 @@ func (m *Manager) Close() {
 	os.Remove(m.db.dbPath)
 }
 
-func (m *Manager) Lookup(parent uint64, name string) (*common.Metadata, error) {
+func (m *Manager) Lookup(parent int64, name string) (*common.Metadata, error) {
 	m.rLock()
 	defer m.rUnlock()
 
@@ -149,7 +149,7 @@ func (m *Manager) Lookup(parent uint64, name string) (*common.Metadata, error) {
 	return md, nil
 }
 
-func (m *Manager) GetMetadata(inode uint64) (*common.Metadata, error) {
+func (m *Manager) GetMetadata(inode int64) (*common.Metadata, error) {
 	m.rLock()
 	defer m.rUnlock()
 
@@ -171,7 +171,7 @@ func (m *Manager) GetMetadata(inode uint64) (*common.Metadata, error) {
 	return md, nil
 }
 
-func (m *Manager) GetDirectoryContent(inode uint64) ([]common.Metadata, error) {
+func (m *Manager) GetDirectoryContent(inode int64) ([]common.Metadata, error) {
 	m.rLock()
 	defer m.rUnlock()
 

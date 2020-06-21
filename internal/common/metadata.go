@@ -1,11 +1,12 @@
 package common
 
 type Metadata struct {
-	Inode  uint64
+	Inode  int64
 	Name   string
 	URL    string
-	Size   uint64
-	Mode   uint32
+	Size   int64
+	Mode   int
 	Type   int
 	Parent uint64
+	NLink  int
 }
