@@ -2,6 +2,7 @@ package fs
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/paddlesteamer/hdn-drv/internal/common"
@@ -139,6 +140,67 @@ func (r *HdnDrvFs) ReadDir(ino int64, fi *fuse.FileInfo, off int64, size int, w 
 	}
 
 	return fuse.OK
+}
+
+func (r *HdnDrvFs) Open(ino int64, fi *fuse.FileInfo) fuse.Status {
+	md, err := r.manager.GetMetadata(ino)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return fuse.ENOENT
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't get metadata of inode %d: %v\n", ino, err)
+
+		return fuse.EIO
+	}
+
+	if md.Type == common.DRV_FOLDER {
+		return fuse.EISDIR
+	}
+
+	return fuse.OK
+}
+
+func (r *HdnDrvFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]byte, fuse.Status) {
+	md, err := r.manager.GetMetadata(ino)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return nil, fuse.ENOENT
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't get metadata of inode %d: %v\n", ino, err)
+
+		return nil, fuse.EIO
+	}
+
+	reader, err := r.manager.GetFile(md)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't get reader: %v", err)
+
+		return nil, fuse.EIO
+	}
+	defer reader.Close()
+
+	if off+size > md.Size {
+		size = md.Size - off
+	}
+
+	data := make([]byte, size)
+
+	n, err := reader.Read(data)
+	if err != nil && err != io.EOF {
+		fmt.Fprintf(os.Stderr, "couldn't read from reader: %v", err)
+
+		return nil, fuse.EIO
+	}
+
+	if int64(n) != size {
+		fmt.Fprintf(os.Stderr, "couldn't read full. expected %d, read %d", size, n)
+
+		return nil, fuse.EIO
+	}
+
+	return data, fuse.OK
 }
 
 func newInode(md *common.Metadata) *fuse.InoAttr {
