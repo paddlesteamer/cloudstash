@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -40,14 +39,14 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		drives = append(drives, dbx)
 	}
 
-	u, err := url.Parse(conf.DatabaseFile)
+	fu, err := common.ParseURL(conf.DatabaseFile)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't parse database file url: %v", err)
 	}
 
 	var drv drive.Drive = nil
 	for _, d := range drives {
-		if d.GetProviderName() == u.Scheme {
+		if d.GetProviderName() == fu.Scheme {
 			drv = d
 			break
 		}
@@ -63,10 +62,10 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 	}
 	// defer dbf.Close() close manually, at least shouldn't be deferred here
 
-	dbExtPath := fmt.Sprintf("/%s", u.Host)
+	dbExtPath := fu.Path
 	dbPath := file.Name()
 
-	_, reader, err := drv.GetFile(u.Host)
+	_, reader, err := drv.GetFile(dbExtPath)
 	if err != nil { // TODO: check specific 'not found' error
 		// below is for not found error
 		file.Close()
@@ -202,6 +201,25 @@ func (m *Manager) GetDirectoryContent(parent int64) ([]common.Metadata, error) {
 	return mdList, nil
 }
 
+func (m *Manager) GetFile(md *common.Metadata) (io.ReadCloser, error) {
+	u, err := common.ParseURL(md.URL)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse file url %s: %v", md.URL, err)
+	}
+
+	drv, err := m.getDriveClient(u.Scheme)
+	if err != nil {
+		return nil, err
+	}
+
+	_, reader, err := drv.GetFile(u.Path)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get file '%s' from storage: %v", md.URL, err)
+	}
+
+	return reader, nil
+}
+
 func (m *Manager) checkChanges() {
 	for {
 		time.Sleep(checkInterval)
@@ -250,6 +268,16 @@ func (m *Manager) getDBClient() (*db.Client, error) {
 	cli, err := db.NewClient(m.db.dbPath)
 
 	return cli, err
+}
+
+func (m *Manager) getDriveClient(scheme string) (drive.Drive, error) {
+	for _, drv := range m.drives {
+		if drv.GetProviderName() == scheme {
+			return drv, nil
+		}
+	}
+
+	return nil, fmt.Errorf("couldn't find driver")
 }
 
 func (m *Manager) wLock() {
