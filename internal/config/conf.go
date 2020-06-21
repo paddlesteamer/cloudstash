@@ -15,6 +15,7 @@ type Configuration struct {
 	EncryptionKey string
 	Dropbox       *DropboxCredentials
 	DatabaseFile  string
+	MountPoint    string
 }
 
 func ParseConfig(path string) (*Configuration, error) {
