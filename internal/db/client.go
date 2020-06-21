@@ -104,16 +104,26 @@ func (c *Client) Get(inode int64) (*common.Metadata, error) {
 		return nil, common.ErrNotFound
 	}
 
-	return c.parseRow(row)
+	md, err := c.parseRow(row)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.fillNLink(md)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get nlink count: %v", err)
+	}
+
+	return md, nil
 }
 
-func (c *Client) GetChildren(inode int64) ([]common.Metadata, error) {
+func (c *Client) GetChildren(parent int64) ([]common.Metadata, error) {
 	query, err := c.db.Prepare("SELECT * FROM files WHERE parent=?")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
 	}
 
-	row, err := query.Query(inode)
+	row, err := query.Query(parent)
 	if err != nil {
 		return nil, fmt.Errorf("there is an error in query: %v", err)
 	}
@@ -126,10 +136,45 @@ func (c *Client) GetChildren(inode int64) ([]common.Metadata, error) {
 			return nil, err
 		}
 
+		err = c.fillNLink(md)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't get nlink count: %v", err)
+		}
+
 		mdList = append(mdList, *md)
 	}
 
 	return mdList, nil
+}
+
+func (c *Client) fillNLink(md *common.Metadata) error {
+	if md.Type == common.DRV_FILE {
+		md.NLink = 1
+		return nil
+	}
+
+	query, err := c.db.Prepare("SELECT COUNT(*) FROM files WHERE parent=? and type=?")
+	if err != nil {
+		return fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	row, err := query.Query(md.Inode, common.DRV_FOLDER)
+	if err != nil {
+		return fmt.Errorf("there is an error in query: %v", err)
+	}
+	defer row.Close()
+
+	row.Next() // should always be true
+
+	var count int
+
+	err = row.Scan(&count)
+	if err != nil {
+		return fmt.Errorf("couldn't parse row count")
+	}
+
+	md.NLink = count + 2 // don't forget '.' and '..' dirs
+	return nil
 }
 
 func (c *Client) parseRow(row *sql.Rows) (*common.Metadata, error) {

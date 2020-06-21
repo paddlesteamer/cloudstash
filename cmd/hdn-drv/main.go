@@ -31,6 +31,5 @@ func main() {
 
 	fs := fs.NewHdnDrvFs(m)
 
-	fmt.Println([]string{os.Args[0], conf.MountPoint})
 	fuse.MountAndRun([]string{os.Args[0], conf.MountPoint}, fs)
 }
