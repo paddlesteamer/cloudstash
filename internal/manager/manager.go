@@ -219,6 +219,7 @@ func (m *Manager) GetFile(md *common.Metadata) (*os.File, error) {
 	} else {
 		path = p.(string)
 	}
+	m.c.Set(strconv.FormatInt(md.Inode, 10), path, cache.DefaultExpiration) // update expiration
 
 	file, err := os.Open(path)
 	if err != nil {
@@ -226,6 +227,49 @@ func (m *Manager) GetFile(md *common.Metadata) (*os.File, error) {
 	}
 
 	return file, nil
+}
+
+func (m *Manager) AddDirectory(parent int64, name string, mode int) (*common.Metadata, error) {
+	m.wLock()
+	defer m.wUnlock()
+
+	db, err := m.getDBClient()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't connect to database: %v", err)
+	}
+
+	md, err := db.AddDirectory(parent, name, mode)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create directory in database: %v", err)
+	}
+
+	go m.uploadDatabase()
+
+	return md, nil
+}
+
+func (m *Manager) uploadDatabase() {
+	m.wLock()
+	defer m.wUnlock()
+
+	file, err := os.Open(m.db.dbPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't open database file: %v", err)
+		return
+	}
+	defer file.Close()
+
+	err = m.db.extDrive.PutFile(m.db.extPath, file)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't upload database file: %v", err)
+		return
+	}
+
+	m.db.hash, err = m.db.extDrive.ComputeHash(m.db.dbPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't compute hash of updated database: %v", err)
+		return
+	}
 }
 
 func (m *Manager) checkChanges() {
