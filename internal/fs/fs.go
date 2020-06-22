@@ -24,6 +24,10 @@ func NewHdnDrvFs(m *manager.Manager) *HdnDrvFs {
 	return filesystem
 }
 
+func (r *HdnDrvFs) StatFs(ino int64) (*fuse.StatVFS, fuse.Status) {
+	return nil, fuse.ENOSYS
+}
+
 func (r *HdnDrvFs) GetAttr(ino int64, info *fuse.FileInfo) (*fuse.InoAttr, fuse.Status) {
 	md, err := r.manager.GetMetadata(ino)
 	if err != nil {
@@ -175,7 +179,7 @@ func (r *HdnDrvFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]
 
 	reader, err := r.manager.GetFile(md)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't get reader: %v", err)
+		fmt.Fprintf(os.Stderr, "couldn't get reader: %v\n", err)
 
 		return nil, fuse.EIO
 	}
@@ -185,17 +189,22 @@ func (r *HdnDrvFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]
 		size = md.Size - off
 	}
 
+	_, err = reader.Seek(off, 0)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't seek to provided offset %d: %v\n", off, err)
+	}
+
 	data := make([]byte, size)
 
 	n, err := reader.Read(data)
 	if err != nil && err != io.EOF {
-		fmt.Fprintf(os.Stderr, "couldn't read from reader: %v", err)
+		fmt.Fprintf(os.Stderr, "couldn't read from reader: %v\n", err)
 
 		return nil, fuse.EIO
 	}
 
 	if int64(n) != size {
-		fmt.Fprintf(os.Stderr, "couldn't read full. expected %d, read %d", size, n)
+		fmt.Fprintf(os.Stderr, "couldn't read full. expected %d, read %d\n", size, n)
 
 		return nil, fuse.EIO
 	}
