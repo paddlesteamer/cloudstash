@@ -75,7 +75,7 @@ func (c *Client) Search(parent int64, name string) (*common.Metadata, error) {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
 	}
 
-	row, err := query.Query(parent, name)
+	row, err := query.Query(name, parent)
 	if err != nil {
 		return nil, fmt.Errorf("there is an error in query: %v", err)
 	}
@@ -145,6 +145,42 @@ func (c *Client) GetChildren(parent int64) ([]common.Metadata, error) {
 	}
 
 	return mdList, nil
+}
+
+func (c *Client) AddDirectory(parent int64, name string, mode int) (*common.Metadata, error) {
+	query, err := c.db.Prepare("INSERT INTO files(name, mode, parent, type) VALUES(?, ?, ?, ?)")
+	if err != nil {
+		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	_, err = query.Exec(name, mode, parent, common.DRV_FOLDER)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't insert directory: %v", err)
+	}
+
+	query, err = c.db.Prepare("SELECT * FROM files WHERE name=? and parent=?")
+	if err != nil {
+		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	row, err := query.Query(name, parent)
+	if err != nil {
+		return nil, fmt.Errorf("there is an error in query: %v", err)
+	}
+	defer row.Close()
+
+	if !row.Next() {
+		return nil, fmt.Errorf("row should be inserted but apparently it didn't")
+	}
+
+	md, err := c.parseRow(row)
+	if err != nil {
+		return nil, err
+	}
+
+	md.NLink = 2 // since it's just created, there are only '.' and '..'
+
+	return md, nil
 }
 
 func (c *Client) fillNLink(md *common.Metadata) error {

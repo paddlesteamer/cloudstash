@@ -29,6 +29,8 @@ func (r *HdnDrvFs) StatFs(ino int64) (*fuse.StatVFS, fuse.Status) {
 }
 
 func (r *HdnDrvFs) GetAttr(ino int64, info *fuse.FileInfo) (*fuse.InoAttr, fuse.Status) {
+	fmt.Printf("getattr ino: %d\n", ino)
+
 	md, err := r.manager.GetMetadata(ino)
 	if err != nil {
 		if err == common.ErrNotFound {
@@ -46,6 +48,8 @@ func (r *HdnDrvFs) GetAttr(ino int64, info *fuse.FileInfo) (*fuse.InoAttr, fuse.
 }
 
 func (r *HdnDrvFs) Lookup(parent int64, name string) (*fuse.Entry, fuse.Status) {
+	fmt.Printf("lookup parent: %d, name: %s\n", parent, name)
+
 	parentmd, err := r.manager.GetMetadata(parent)
 	if err != nil {
 		if err == common.ErrNotFound {
@@ -85,6 +89,8 @@ func (r *HdnDrvFs) Lookup(parent int64, name string) (*fuse.Entry, fuse.Status) 
 }
 
 func (r *HdnDrvFs) ReadDir(ino int64, fi *fuse.FileInfo, off int64, size int, w fuse.DirEntryWriter) fuse.Status {
+	fmt.Printf("readdir ino %d\n", ino)
+
 	dirmd, err := r.manager.GetMetadata(ino)
 	if err != nil {
 		if err == common.ErrNotFound {
@@ -147,6 +153,8 @@ func (r *HdnDrvFs) ReadDir(ino int64, fi *fuse.FileInfo, off int64, size int, w 
 }
 
 func (r *HdnDrvFs) Open(ino int64, fi *fuse.FileInfo) fuse.Status {
+	fmt.Printf("open ino: %d\n", ino)
+
 	md, err := r.manager.GetMetadata(ino)
 	if err != nil {
 		if err == common.ErrNotFound {
@@ -166,6 +174,8 @@ func (r *HdnDrvFs) Open(ino int64, fi *fuse.FileInfo) fuse.Status {
 }
 
 func (r *HdnDrvFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]byte, fuse.Status) {
+	fmt.Printf("read ino: %d\n", ino)
+
 	md, err := r.manager.GetMetadata(ino)
 	if err != nil {
 		if err == common.ErrNotFound {
@@ -210,6 +220,27 @@ func (r *HdnDrvFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]
 	}
 
 	return data, fuse.OK
+}
+
+func (r *HdnDrvFs) Mkdir(parent int64, name string, mode int) (*fuse.Entry, fuse.Status) {
+	fmt.Printf("mkdir parent: %d name: %s\n", parent, name)
+
+	md, err := r.manager.AddDirectory(parent, name, mode)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't create directory: %v", err)
+		return nil, fuse.EIO
+	}
+
+	inode := newInode(md)
+
+	entry := &fuse.Entry{
+		Ino:          md.Inode,
+		Attr:         inode,
+		AttrTimeout:  1.0,
+		EntryTimeout: 1.0,
+	}
+
+	return entry, fuse.OK
 }
 
 func newInode(md *common.Metadata) *fuse.InoAttr {

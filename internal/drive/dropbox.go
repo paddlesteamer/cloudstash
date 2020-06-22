@@ -48,8 +48,11 @@ func (d *Dropbox) GetFile(path string) (*Metadata, io.ReadCloser, error) {
 
 // PutFile uploads a new file.
 func (d *Dropbox) PutFile(path string, content io.Reader) error {
-	args := files.NewCommitInfo(path)
-	_, err := d.client.Upload(args, content)
+	dargs := files.NewDeleteArg(path)
+	d.client.DeleteV2(dargs) //@TODO: ignore notfound error but check other errors
+
+	uargs := files.NewCommitInfo(path)
+	_, err := d.client.Upload(uargs, content)
 	if err != nil {
 		return fmt.Errorf("could not upload file to dropbox %s: %v", path, err)
 	}
