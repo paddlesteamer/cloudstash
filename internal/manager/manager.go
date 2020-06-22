@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/paddlesteamer/hdn-drv/internal/config"
 	"github.com/paddlesteamer/hdn-drv/internal/db"
 	"github.com/paddlesteamer/hdn-drv/internal/drive"
+	"github.com/patrickmn/go-cache"
 )
 
 type dbStat struct {
@@ -26,6 +28,7 @@ type Manager struct {
 	drives []drive.Drive
 	key    string
 	db     dbStat
+	c      *cache.Cache
 }
 
 const checkInterval time.Duration = 5 * time.Second
@@ -115,6 +118,7 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 			dbPath: dbPath,
 			hash:   hash,
 		},
+		c: newCache(),
 	}
 
 	go m.checkChanges()
@@ -201,23 +205,27 @@ func (m *Manager) GetDirectoryContent(parent int64) ([]common.Metadata, error) {
 	return mdList, nil
 }
 
-func (m *Manager) GetFile(md *common.Metadata) (io.ReadCloser, error) {
-	u, err := common.ParseURL(md.URL)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't parse file url %s: %v", md.URL, err)
+func (m *Manager) GetFile(md *common.Metadata) (*os.File, error) {
+	var path string
+
+	p, found := m.c.Get(strconv.FormatInt(md.Inode, 10))
+	if !found {
+		p, err := m.downloadFile(md)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't get file from storage %s: %v", md.Name, err)
+		}
+
+		path = p
+	} else {
+		path = p.(string)
 	}
 
-	drv, err := m.getDriveClient(u.Scheme)
+	file, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("couldn't open file %s: %v", path, err)
 	}
 
-	_, reader, err := drv.GetFile(u.Path)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get file '%s' from storage: %v", md.URL, err)
-	}
-
-	return reader, nil
+	return file, nil
 }
 
 func (m *Manager) checkChanges() {
@@ -238,21 +246,21 @@ func (m *Manager) checkChanges() {
 
 		_, reader, err := m.db.extDrive.GetFile(m.db.extPath)
 		if err != nil {
-			fmt.Printf("couldn't get updated db file: %v", err)
+			fmt.Fprintf(os.Stderr, "couldn't get updated db file: %v\n", err)
 			m.wUnlock()
 			continue
 		}
 
 		file, err := os.Open(m.db.dbPath)
 		if err != nil {
-			fmt.Printf("couldn't open db: %v", err)
+			fmt.Fprintf(os.Stderr, "couldn't open db: %v\n", err)
 			m.wUnlock()
 			continue
 		}
 
 		_, err = io.Copy(file, reader)
 		if err != nil {
-			fmt.Printf("couldn't copy contents of updated db file to local file: %v", err)
+			fmt.Fprintf(os.Stderr, "couldn't copy contents of updated db file to local file: %v\n", err)
 			m.wUnlock()
 			continue
 		}
@@ -278,6 +286,37 @@ func (m *Manager) getDriveClient(scheme string) (drive.Drive, error) {
 	}
 
 	return nil, fmt.Errorf("couldn't find driver")
+}
+
+func (m *Manager) downloadFile(md *common.Metadata) (string, error) {
+	u, err := common.ParseURL(md.URL)
+	if err != nil {
+		return "", fmt.Errorf("couldn't parse file url %s: %v", md.URL, err)
+	}
+
+	drv, err := m.getDriveClient(u.Scheme)
+	if err != nil {
+		return "", err
+	}
+
+	_, reader, err := drv.GetFile(u.Path)
+	if err != nil {
+		return "", fmt.Errorf("couldn't get file '%s' from storage: %v", md.URL, err)
+	}
+	defer reader.Close()
+
+	tmpfile, err := ioutil.TempFile("/tmp", "hdn-drv-cached-")
+	if err != nil {
+		return "", fmt.Errorf("couldn't create cached file: %v", err)
+	}
+	defer tmpfile.Close()
+
+	_, err = io.Copy(tmpfile, reader)
+	if err != nil && err != io.EOF {
+		return "", fmt.Errorf("couldn't copy contents of downloaded file to cache: %v", err)
+	}
+
+	return tmpfile.Name(), nil
 }
 
 func (m *Manager) wLock() {

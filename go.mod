@@ -7,6 +7,7 @@ require (
 	github.com/dropbox/dropbox-sdk-go-unofficial v5.6.0+incompatible
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/vgough/go-fuse-c v0.7.1
 	golang.org/x/net v0.0.0-20200602114024-627f9648deb9 // indirect
