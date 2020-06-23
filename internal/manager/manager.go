@@ -135,8 +135,8 @@ func (m *Manager) Close() {
 	os.Remove(m.db.dbPath)
 }
 
-func (m *Manager) NotifyChangeInFile(md *common.Metadata) {
-	m.tracker.Add(md.Name, md.URL, cacheForever)
+func (m *Manager) NotifyChangeInFile(cachePath string, extPath string) {
+	m.tracker.Add(cachePath, extPath, cacheForever)
 }
 
 func (m *Manager) NotifyChangeInDatabase() {
@@ -329,7 +329,7 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metad
 	m.c.Set(strconv.FormatInt(md.Inode, 10), tmpfile.Name(), cacheExpiration)
 
 	m.NotifyChangeInDatabase()
-	m.NotifyChangeInFile(md)
+	m.NotifyChangeInFile(tmpfile.Name(), md.URL)
 
 	return md, nil
 }
