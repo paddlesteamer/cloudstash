@@ -187,7 +187,7 @@ func (m *Manager) GetMetadata(inode int64) (*common.Metadata, error) {
 	return md, nil
 }
 
-func (m *Manager) UpdateMetadata(inode int64) error {
+func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 	m.wLock()
 	defer m.wUnlock()
 
@@ -221,6 +221,24 @@ func (m *Manager) UpdateMetadata(inode int64) error {
 	}
 
 	md.Size = fi.Size()
+
+	err = db.Update(md)
+	if err != nil {
+		return fmt.Errorf("couldn't update file metadata: %v", err)
+	}
+
+	return nil
+}
+
+func (m *Manager) UpdateMetadata(md *common.Metadata) error {
+	m.wLock()
+	defer m.wUnlock()
+
+	db, err := m.getDBClient()
+	if err != nil {
+		return fmt.Errorf("couldn't connect to database: %v", err)
+	}
+	defer db.Close()
 
 	err = db.Update(md)
 	if err != nil {

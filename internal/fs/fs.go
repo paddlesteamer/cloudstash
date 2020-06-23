@@ -47,6 +47,34 @@ func (r *HdnDrvFs) GetAttr(ino int64, info *fuse.FileInfo) (*fuse.InoAttr, fuse.
 	return inode, fuse.OK
 }
 
+func (r *HdnDrvFs) SetAttr(ino int64, attr *fuse.InoAttr, mask fuse.SetAttrMask, fi *fuse.FileInfo) (*fuse.InoAttr, fuse.Status) {
+	fmt.Printf("setattr ino: %d\n", ino)
+
+	md, err := r.manager.GetMetadata(ino)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return nil, fuse.ENOENT
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't get metadata of inode %d: %v\n", ino, err)
+
+		return nil, fuse.EIO
+	}
+
+	md.Mode = attr.Mode
+
+	err = r.manager.UpdateMetadata(md)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't set attr of inode %d: %v\n", ino, md.Inode)
+
+		return nil, fuse.EIO
+	}
+
+	inode := newInode(md)
+
+	return inode, fuse.OK
+}
+
 func (r *HdnDrvFs) Lookup(parent int64, name string) (*fuse.Entry, fuse.Status) {
 	fmt.Printf("lookup parent: %d, name: %s\n", parent, name)
 
@@ -252,7 +280,7 @@ func (r *HdnDrvFs) Write(p []byte, ino int64, off int64, fi *fuse.FileInfo) (int
 		return n, fuse.EIO
 	}
 
-	err = r.manager.UpdateMetadata(ino)
+	err = r.manager.UpdateMetadataFromCache(ino)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "file is written but couldn't update metadata in db: %v", err)
 
