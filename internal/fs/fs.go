@@ -259,7 +259,7 @@ func (r *HdnDrvFs) Write(p []byte, ino int64, off int64, fi *fuse.FileInfo) (int
 		return 0, fuse.EIO
 	}
 
-	r.manager.NotifyChangeInFile(md)
+	r.manager.NotifyChangeInFile(writer.Name(), md.URL)
 
 	return n, fuse.OK
 }
