@@ -227,6 +227,8 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 		return fmt.Errorf("couldn't update file metadata: %v", err)
 	}
 
+	m.NotifyChangeInDatabase()
+
 	return nil
 }
 
@@ -244,6 +246,8 @@ func (m *Manager) UpdateMetadata(md *common.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("couldn't update file metadata: %v", err)
 	}
+
+	m.NotifyChangeInDatabase()
 
 	return nil
 }
@@ -277,6 +281,65 @@ func (m *Manager) GetDirectoryContent(parent int64) ([]common.Metadata, error) {
 	}
 
 	return mdList, nil
+}
+
+func (m *Manager) RemoveDirectory(ino int64) error {
+	m.wLock()
+	defer m.wUnlock()
+
+	db, err := m.getDBClient()
+	if err != nil {
+		return fmt.Errorf("couldn't connect to database: %v", err)
+	}
+	defer db.Close()
+
+	mdList, err := db.GetChildren(ino)
+	if err != nil {
+		return fmt.Errorf("couldn't get children of %d: %v", ino, err)
+	}
+
+	for _, md := range mdList {
+		m.c.Delete(strconv.FormatInt(md.Inode, 10))
+
+		go m.deleteRemoteFile(&md)
+	}
+
+	err = db.DeleteChildren(ino)
+	if err != nil {
+		return fmt.Errorf("couldn't delete children of inode %d: %v", ino, err)
+	}
+
+	err = db.Delete(ino)
+	if err != nil {
+		return fmt.Errorf("children are removed but couldn't delete the parent itself of inode %d: %v", ino, err)
+	}
+
+	m.NotifyChangeInDatabase()
+
+	return nil
+}
+func (m *Manager) RemoveFile(md *common.Metadata) error {
+	m.wLock()
+	defer m.wUnlock()
+
+	m.c.Delete(strconv.FormatInt(md.Inode, 10))
+
+	go m.deleteRemoteFile(md)
+
+	db, err := m.getDBClient()
+	if err != nil {
+		return fmt.Errorf("couldn't connect to database: %v", err)
+	}
+	defer db.Close()
+
+	err = db.Delete(md.Inode)
+	if err != nil {
+		return fmt.Errorf("couldn't delete file: %v", err)
+	}
+
+	m.NotifyChangeInDatabase()
+
+	return nil
 }
 
 func (m *Manager) OpenFile(md *common.Metadata, flag int) (*os.File, error) {
@@ -498,6 +561,10 @@ func (m *Manager) downloadFile(md *common.Metadata) (string, error) {
 	}
 
 	return tmpfile.Name(), nil
+}
+
+func (m *Manager) deleteRemoteFile(md *common.Metadata) {
+
 }
 
 // @TODO: select drive according to available space

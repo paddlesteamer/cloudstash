@@ -117,6 +117,20 @@ func (c *Client) Get(inode int64) (*common.Metadata, error) {
 	return md, nil
 }
 
+func (c *Client) Delete(inode int64) error {
+	query, err := c.db.Prepare("DELETE FROM files WHERE inode=?")
+	if err != nil {
+		return fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	_, err = query.Exec(inode)
+	if err != nil {
+		return fmt.Errorf("couldn't delete entry: %v", err)
+	}
+
+	return nil
+}
+
 func (c *Client) GetChildren(parent int64) ([]common.Metadata, error) {
 	query, err := c.db.Prepare("SELECT * FROM files WHERE parent=?")
 	if err != nil {
@@ -145,6 +159,20 @@ func (c *Client) GetChildren(parent int64) ([]common.Metadata, error) {
 	}
 
 	return mdList, nil
+}
+
+func (c *Client) DeleteChildren(parent int64) error {
+	query, err := c.db.Prepare("DELETE FROM files WHERE parent=?")
+	if err != nil {
+		return fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	_, err = query.Exec(parent)
+	if err != nil {
+		return fmt.Errorf("couldn't delete children: %v", err)
+	}
+
+	return nil
 }
 
 func (c *Client) AddDirectory(parent int64, name string, mode int) (*common.Metadata, error) {
