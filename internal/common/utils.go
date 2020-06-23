@@ -1,8 +1,20 @@
 package common
 
 import (
+	"crypto/md5"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/url"
+	"os"
+	"time"
+
+	"github.com/paddlesteamer/hdn-drv/internal/drive"
+)
+
+const (
+	cacheFilePrefix = "hdn-drv-cached-"
+	dbFilePrefix    = "hdn-drv-db-"
 )
 
 type FileURL struct {
@@ -18,8 +30,38 @@ func ParseURL(fileUrl string) (*FileURL, error) {
 
 	fu := &FileURL{
 		Scheme: u.Scheme,
-		Path:   fmt.Sprintf("/%s", u.Host),
+		Path:   fmt.Sprintf("/%s%s", u.Host, u.Path),
 	}
 
 	return fu, nil
+}
+
+func GetURL(drv drive.Drive, name string) string {
+	scheme := drv.GetProviderName()
+
+	if name[0] == '/' {
+		name = name[1:]
+	}
+
+	return fmt.Sprintf("%s://%s", scheme, name)
+}
+
+func NewTempCacheFile() (*os.File, error) {
+	tmpfile, err := ioutil.TempFile(os.TempDir(), cacheFilePrefix)
+
+	return tmpfile, err
+}
+
+func NewTempDBFile() (*os.File, error) {
+	tmpfile, err := ioutil.TempFile(os.TempDir(), dbFilePrefix)
+
+	return tmpfile, err
+}
+
+func ObfuscateFileName(name string) string {
+	h := md5.New()
+	io.WriteString(h, name)
+	io.WriteString(h, time.Now().String())
+
+	return fmt.Sprintf("%x.dat", h.Sum(nil))
 }

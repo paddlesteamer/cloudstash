@@ -183,6 +183,56 @@ func (c *Client) AddDirectory(parent int64, name string, mode int) (*common.Meta
 	return md, nil
 }
 
+func (c *Client) CreateFile(parent int64, name string, mode int, url string) (*common.Metadata, error) {
+	query, err := c.db.Prepare("INSERT INTO files(name, url, size, mode, parent, type) VALUES(?, ?, ?, ?, ?, ?)")
+	if err != nil {
+		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	_, err = query.Exec(name, url, 0, mode, parent, common.DRV_FILE)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't insert directory: %v", err)
+	}
+
+	query, err = c.db.Prepare("SELECT * FROM files WHERE name=? and parent=?")
+	if err != nil {
+		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	row, err := query.Query(name, parent)
+	if err != nil {
+		return nil, fmt.Errorf("there is an error in query: %v", err)
+	}
+	defer row.Close()
+
+	if !row.Next() {
+		return nil, fmt.Errorf("row should be inserted but apparently it didn't")
+	}
+
+	md, err := c.parseRow(row)
+	if err != nil {
+		return nil, err
+	}
+
+	md.NLink = 1 // it's file and hardlink isn't supported
+
+	return md, nil
+}
+
+func (c *Client) Update(md *common.Metadata) error {
+	query, err := c.db.Prepare("UPDATE files SET name=?, url=?, size=?, mode=?, parent=?, type=? WHERE inode=?")
+	if err != nil {
+		return fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	_, err = query.Exec(md.Name, md.URL, md.Size, md.Mode, md.Parent, md.Type, md.Inode)
+	if err != nil {
+		return fmt.Errorf("couldn't update file: %v", err)
+	}
+
+	return nil
+}
+
 func (c *Client) fillNLink(md *common.Metadata) error {
 	if md.Type == common.DRV_FILE {
 		md.NLink = 1
