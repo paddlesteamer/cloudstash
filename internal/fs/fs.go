@@ -152,6 +152,28 @@ func (r *HdnDrvFs) ReadDir(ino int64, fi *fuse.FileInfo, off int64, size int, w 
 	return fuse.OK
 }
 
+func (r *HdnDrvFs) Create(parent int64, name string, mode int, fi *fuse.FileInfo) (*fuse.Entry, fuse.Status) {
+	fmt.Printf("create parent: %d name: %s\n", parent, name)
+
+	md, err := r.manager.CreateFile(parent, name, mode)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't create file: %v", err)
+
+		return nil, fuse.EIO
+	}
+
+	inode := newInode(md)
+
+	entry := &fuse.Entry{
+		Ino:          md.Inode,
+		Attr:         inode,
+		AttrTimeout:  1.0,
+		EntryTimeout: 1.0,
+	}
+
+	return entry, fuse.OK
+}
+
 func (r *HdnDrvFs) Open(ino int64, fi *fuse.FileInfo) fuse.Status {
 	fmt.Printf("open ino: %d\n", ino)
 
@@ -173,6 +195,75 @@ func (r *HdnDrvFs) Open(ino int64, fi *fuse.FileInfo) fuse.Status {
 	return fuse.OK
 }
 
+func (r *HdnDrvFs) OpenDir(ino int64, fi *fuse.FileInfo) fuse.Status {
+	fmt.Printf("open dir ino: %d\n", ino)
+
+	md, err := r.manager.GetMetadata(ino)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return fuse.ENOENT
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't get metadata of inode %d: %v\n", ino, err)
+
+		return fuse.EIO
+	}
+
+	if md.Type != common.DRV_FOLDER {
+		return fuse.ENOTDIR
+	}
+
+	return fuse.OK
+}
+
+func (r *HdnDrvFs) Write(p []byte, ino int64, off int64, fi *fuse.FileInfo) (int, fuse.Status) {
+	fmt.Printf("write ino: %d\n", ino)
+
+	md, err := r.manager.GetMetadata(ino)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return 0, fuse.ENOENT
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't get metadata of inode %d: %v\n", ino, err)
+
+		return 0, fuse.EIO
+	}
+
+	writer, err := r.manager.OpenFile(md, os.O_APPEND|os.O_WRONLY|os.O_CREATE)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't get writer: %v\n", err)
+
+		return 0, fuse.EIO
+	}
+	defer writer.Close()
+
+	_, err = writer.Seek(off, 0)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't seek to provided offset %d: %v\n", off, err)
+
+		return 0, fuse.EIO
+	}
+
+	n, err := writer.Write(p)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't write to file: %v", err)
+
+		return n, fuse.EIO
+	}
+
+	err = r.manager.UpdateMetadata(ino)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "file is written but couldn't update metadata in db: %v", err)
+
+		return 0, fuse.EIO
+	}
+
+	r.manager.NotifyChangeInFile(md)
+
+	return n, fuse.OK
+}
+
 func (r *HdnDrvFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]byte, fuse.Status) {
 	fmt.Printf("read ino: %d\n", ino)
 
@@ -187,7 +278,7 @@ func (r *HdnDrvFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]
 		return nil, fuse.EIO
 	}
 
-	reader, err := r.manager.GetFile(md)
+	reader, err := r.manager.OpenFile(md, os.O_RDONLY)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't get reader: %v\n", err)
 
@@ -202,6 +293,8 @@ func (r *HdnDrvFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]
 	_, err = reader.Seek(off, 0)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't seek to provided offset %d: %v\n", off, err)
+
+		return nil, fuse.EIO
 	}
 
 	data := make([]byte, size)

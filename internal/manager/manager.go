@@ -3,7 +3,6 @@ package manager
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"sync"
@@ -25,13 +24,17 @@ type dbStat struct {
 }
 
 type Manager struct {
-	drives []drive.Drive
-	key    string
-	db     dbStat
-	c      *cache.Cache
+	drives  []drive.Drive
+	key     string
+	db      dbStat
+	c       *cache.Cache
+	tracker *cache.Cache
 }
 
-const checkInterval time.Duration = 5 * time.Second
+const (
+	checkInterval   time.Duration = 60 * time.Second
+	processInterval time.Duration = 5 * time.Second
+)
 
 func NewManager(conf *config.Configuration) (*Manager, error) {
 	key := conf.EncryptionKey
@@ -59,7 +62,7 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		return nil, fmt.Errorf("couldn't find a drive matching database file scheme")
 	}
 
-	file, err := ioutil.TempFile("/tmp", "hdn-drv-db")
+	file, err := common.NewTempDBFile()
 	if err != nil {
 		return nil, fmt.Errorf("manager: unable to create database file: %v", err)
 	}
@@ -118,16 +121,26 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 			dbPath: dbPath,
 			hash:   hash,
 		},
-		c: newCache(),
+		c:       newCache(),
+		tracker: newTracker(),
 	}
 
-	go m.checkChanges()
+	go m.checkRemoteChanges()
+	go m.processLocalChanges()
 
 	return m, nil
 }
 
 func (m *Manager) Close() {
 	os.Remove(m.db.dbPath)
+}
+
+func (m *Manager) NotifyChangeInFile(md *common.Metadata) {
+	m.tracker.Add(md.Name, md.URL, cacheForever)
+}
+
+func (m *Manager) NotifyChangeInDatabase() {
+	m.tracker.Add(m.db.dbPath, common.GetURL(m.db.extDrive, m.db.extPath), cacheForever)
 }
 
 func (m *Manager) Lookup(parent int64, name string) (*common.Metadata, error) {
@@ -174,6 +187,49 @@ func (m *Manager) GetMetadata(inode int64) (*common.Metadata, error) {
 	return md, nil
 }
 
+func (m *Manager) UpdateMetadata(inode int64) error {
+	m.wLock()
+	defer m.wUnlock()
+
+	p, found := m.c.Get(strconv.FormatInt(inode, 10))
+	if !found {
+		return fmt.Errorf("the file hasn't beed cached")
+	}
+
+	path := p.(string)
+
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("couldn't open file %s: %v", path, err)
+	}
+	defer file.Close()
+
+	fi, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("couldn't get file stats %s: %v", path, err)
+	}
+
+	db, err := m.getDBClient()
+	if err != nil {
+		return fmt.Errorf("couldn't connect to database: %v", err)
+	}
+	defer db.Close()
+
+	md, err := db.Get(inode)
+	if err != nil {
+		return fmt.Errorf("couldn't get file: %v", err)
+	}
+
+	md.Size = fi.Size()
+
+	err = db.Update(md)
+	if err != nil {
+		return fmt.Errorf("couldn't update file metadata: %v", err)
+	}
+
+	return nil
+}
+
 func (m *Manager) GetDirectoryContent(parent int64) ([]common.Metadata, error) {
 	m.rLock()
 	defer m.rUnlock()
@@ -205,7 +261,7 @@ func (m *Manager) GetDirectoryContent(parent int64) ([]common.Metadata, error) {
 	return mdList, nil
 }
 
-func (m *Manager) GetFile(md *common.Metadata) (*os.File, error) {
+func (m *Manager) OpenFile(md *common.Metadata, flag int) (*os.File, error) {
 	var path string
 
 	p, found := m.c.Get(strconv.FormatInt(md.Inode, 10))
@@ -219,9 +275,9 @@ func (m *Manager) GetFile(md *common.Metadata) (*os.File, error) {
 	} else {
 		path = p.(string)
 	}
-	m.c.Set(strconv.FormatInt(md.Inode, 10), path, cache.DefaultExpiration) // update expiration
+	m.c.Set(strconv.FormatInt(md.Inode, 10), path, cacheExpiration) // update expiration
 
-	file, err := os.Open(path)
+	file, err := os.OpenFile(path, flag, os.ModeAppend)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't open file %s: %v", path, err)
 	}
@@ -243,76 +299,139 @@ func (m *Manager) AddDirectory(parent int64, name string, mode int) (*common.Met
 		return nil, fmt.Errorf("couldn't create directory in database: %v", err)
 	}
 
-	go m.uploadDatabase()
+	m.NotifyChangeInDatabase()
 
 	return md, nil
 }
 
-func (m *Manager) uploadDatabase() {
+func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metadata, error) {
 	m.wLock()
 	defer m.wUnlock()
 
-	file, err := os.Open(m.db.dbPath)
+	db, err := m.getDBClient()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't open database file: %v", err)
-		return
-	}
-	defer file.Close()
-
-	err = m.db.extDrive.PutFile(m.db.extPath, file)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't upload database file: %v", err)
-		return
+		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
 
-	m.db.hash, err = m.db.extDrive.ComputeHash(m.db.dbPath)
+	u := common.GetURL(m.selectDrive(), common.ObfuscateFileName(name))
+
+	md, err := db.CreateFile(parent, name, mode, u)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't compute hash of updated database: %v", err)
-		return
+		return nil, fmt.Errorf("couldn't create file in database: %v", err)
+	}
+
+	tmpfile, err := common.NewTempCacheFile()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create cached file: %v", err)
+	}
+	tmpfile.Close()
+
+	m.c.Set(strconv.FormatInt(md.Inode, 10), tmpfile.Name(), cacheExpiration)
+
+	m.NotifyChangeInDatabase()
+	m.NotifyChangeInFile(md)
+
+	return md, nil
+}
+
+func (m *Manager) checkRemoteChanges() {
+	for {
+		time.Sleep(checkInterval)
+
+		m.checkChanges()
 	}
 }
 
 func (m *Manager) checkChanges() {
+	mdata, err := m.db.extDrive.GetFileMetadata(m.db.extPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return
+	}
+
+	m.wLock()
+	defer m.wUnlock()
+
+	if mdata.Hash == m.db.hash {
+		return
+	}
+
+	_, reader, err := m.db.extDrive.GetFile(m.db.extPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't get updated db file: %v\n", err)
+
+		return
+	}
+	defer reader.Close()
+
+	file, err := os.Open(m.db.dbPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't open db: %v\n", err)
+
+		return
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, reader)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't copy contents of updated db file to local file: %v\n", err)
+
+		return
+	}
+}
+
+func (m *Manager) processLocalChanges() {
+
 	for {
-		time.Sleep(checkInterval)
+		time.Sleep(processInterval)
 
-		mdata, err := m.db.extDrive.GetFileMetadata(m.db.extPath)
+		m.processChanges()
+	}
+}
+
+func (m *Manager) processChanges() {
+	items := m.tracker.Items()
+	m.tracker.Flush()
+
+	m.rLock()
+	defer m.rUnlock()
+
+	for local, it := range items {
+		url := it.Object.(string)
+
+		u, err := common.ParseURL(url)
 		if err != nil {
-			fmt.Printf("%v\n", err)
+			fmt.Fprintf(os.Stderr, "couldn't parse url %s. skipping: %v", url, err)
 			continue
 		}
 
-		m.wLock()
-		if mdata.Hash == m.db.hash {
-			m.wUnlock()
-			continue
-		}
-
-		_, reader, err := m.db.extDrive.GetFile(m.db.extPath)
+		drv, err := m.getDriveClient(u.Scheme)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't get updated db file: %v\n", err)
-			m.wUnlock()
+			fmt.Fprintf(os.Stderr, "couldn't find drive client of %s: %v", u.Scheme, err)
 			continue
 		}
 
-		file, err := os.Open(m.db.dbPath)
+		file, err := os.Open(local)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't open db: %v\n", err)
-			m.wUnlock()
+			fmt.Fprintf(os.Stderr, "couldn't open file %s: %v", local, err)
 			continue
 		}
+		defer file.Close()
 
-		_, err = io.Copy(file, reader)
+		err = drv.PutFile(u.Path, file)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't copy contents of updated db file to local file: %v\n", err)
-			m.wUnlock()
-			continue
+			fmt.Fprintf(os.Stderr, "couldn't upload database file: %v", err)
+			return
 		}
 
-		reader.Close()
-		file.Close()
+		if local == m.db.dbPath { // if this file is database file
+			m.db.hash, err = m.db.extDrive.ComputeHash(m.db.dbPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "couldn't compute hash of updated database: %v", err)
+				return
+			}
+		}
 
-		m.wUnlock()
 	}
 }
 
@@ -349,7 +468,7 @@ func (m *Manager) downloadFile(md *common.Metadata) (string, error) {
 	}
 	defer reader.Close()
 
-	tmpfile, err := ioutil.TempFile("/tmp", "hdn-drv-cached-")
+	tmpfile, err := common.NewTempCacheFile()
 	if err != nil {
 		return "", fmt.Errorf("couldn't create cached file: %v", err)
 	}
@@ -361,6 +480,11 @@ func (m *Manager) downloadFile(md *common.Metadata) (string, error) {
 	}
 
 	return tmpfile.Name(), nil
+}
+
+// @TODO: select drive according to available space
+func (m *Manager) selectDrive() drive.Drive {
+	return m.drives[0]
 }
 
 func (m *Manager) wLock() {
