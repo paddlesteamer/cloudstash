@@ -180,6 +180,40 @@ func (r *HdnDrvFs) ReadDir(ino int64, fi *fuse.FileInfo, off int64, size int, w 
 	return fuse.OK
 }
 
+func (r *HdnDrvFs) Rmdir(parent int64, name string) fuse.Status {
+	fmt.Printf("rmdir ino: %d name: %s\n", parent, name)
+
+	parentmd, err := r.manager.GetMetadata(parent)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return fuse.ENOENT
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't get parent metadata: %v\n", err)
+
+		return fuse.EIO
+	}
+
+	if parentmd.Type != common.DRV_FOLDER {
+		return fuse.ENOTDIR
+	}
+
+	md, err := r.manager.Lookup(parent, name)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return fuse.ENOENT
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't lookup for '%s' under %d: %v\n", name, parent, err)
+
+		return fuse.EIO
+	}
+
+	err = r.manager.RemoveDirectory(md.Inode)
+
+	return fuse.OK
+}
+
 func (r *HdnDrvFs) Create(parent int64, name string, mode int, fi *fuse.FileInfo) (*fuse.Entry, fuse.Status) {
 	fmt.Printf("create parent: %d name: %s\n", parent, name)
 
@@ -362,6 +396,45 @@ func (r *HdnDrvFs) Mkdir(parent int64, name string, mode int) (*fuse.Entry, fuse
 	}
 
 	return entry, fuse.OK
+}
+
+func (r *HdnDrvFs) Unlink(parent int64, name string) fuse.Status {
+	fmt.Printf("unlink parent: %d name: %s\n", parent, name)
+
+	parentmd, err := r.manager.GetMetadata(parent)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return fuse.ENOENT
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't get parent metadata: %v\n", err)
+
+		return fuse.EIO
+	}
+
+	if parentmd.Type != common.DRV_FOLDER {
+		return fuse.ENOTDIR
+	}
+
+	md, err := r.manager.Lookup(parent, name)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return fuse.ENOENT
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't lookup for '%s' under %d: %v\n", name, parent, err)
+
+		return fuse.EIO
+	}
+
+	err = r.manager.RemoveFile(md)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't delete file %s: %v", md.Name, err)
+
+		return fuse.EIO
+	}
+
+	return fuse.OK
 }
 
 func newInode(md *common.Metadata) *fuse.InoAttr {
