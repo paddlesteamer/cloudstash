@@ -437,6 +437,59 @@ func (r *HdnDrvFs) Unlink(parent int64, name string) fuse.Status {
 	return fuse.OK
 }
 
+func (r *HdnDrvFs) Rename(oparent int64, oname string, tparent int64, tname string) fuse.Status {
+	fmt.Printf("rename p: %d name: %s\n", oparent, oname)
+
+	oparentmd, err := r.manager.GetMetadata(oparent)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return fuse.ENOENT
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't get parent metadata: %v\n", err)
+
+		return fuse.EIO
+	}
+
+	tparentmd, err := r.manager.GetMetadata(tparent)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return fuse.ENOENT
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't get parent metadata: %v\n", err)
+
+		return fuse.EIO
+	}
+
+	if oparentmd.Type != common.DRV_FOLDER || tparentmd.Type != common.DRV_FOLDER {
+		return fuse.ENOTDIR
+	}
+
+	md, err := r.manager.Lookup(oparent, oname)
+	if err != nil {
+		if err == common.ErrNotFound {
+			return fuse.ENOENT
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't lookup for '%s' under %d: %v\n", oname, oparent, err)
+
+		return fuse.EIO
+	}
+
+	md.Parent = tparent
+	md.Name = tname
+
+	err = r.manager.UpdateMetadata(md)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't rename file %s under inode %d: %v", oname, oparent, err)
+
+		return fuse.EIO
+	}
+
+	return fuse.OK
+}
+
 func newInode(md *common.Metadata) *fuse.InoAttr {
 	inode := &fuse.InoAttr{
 		Ino:     md.Inode,
