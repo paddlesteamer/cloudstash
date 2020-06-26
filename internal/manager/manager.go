@@ -5,29 +5,19 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/paddlesteamer/hdn-drv/internal/common"
-	"github.com/paddlesteamer/hdn-drv/internal/config"
 	"github.com/paddlesteamer/hdn-drv/internal/crypto"
-	"github.com/paddlesteamer/hdn-drv/internal/db"
 	"github.com/paddlesteamer/hdn-drv/internal/drive"
+	"github.com/paddlesteamer/hdn-drv/internal/sqlite"
 	"github.com/patrickmn/go-cache"
 )
-
-type dbStat struct {
-	extPath  string
-	extDrive drive.Drive
-	dbPath   string
-	hash     string
-	mux      sync.RWMutex
-}
 
 type Manager struct {
 	drives  []drive.Drive
 	key     string
-	db      dbStat
+	db      *database
 	cache   *cache.Cache
 	tracker *cache.Cache
 	cipher  *crypto.Crypto
@@ -38,82 +28,19 @@ const (
 	processInterval time.Duration = 5 * time.Second
 )
 
-func NewManager(cfg config.Cfg, fu *common.FileURL, drives []drive.Drive, drv drive.Drive) (*Manager, error) {
-	cipher := crypto.NewCrypto(cfg.EncryptionKey)
-	file, err := common.NewTempDBFile()
-	if err != nil {
-		return nil, fmt.Errorf("manager: unable to create database file: %v", err)
-	}
-
-	dbExtPath := fu.Path
-	dbPath := file.Name()
-
-	_, reader, err := drv.GetFile(dbExtPath)
-	if err != nil { // TODO: check specific 'not found' error
-		if err != drive.ErrNotFound {
-			return nil, fmt.Errorf("couldn't get file: %v", err)
-		}
-		// below is for not found error
-		file.Close()
-
-		err = db.InitDB(dbPath)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't initialize db: %v", err)
-		}
-
-		dbf, err := os.Open(dbPath)
-		if err != nil {
-			os.Remove(dbPath)
-			return nil, fmt.Errorf("couldn't open intitialized db: %v", err)
-		}
-		defer dbf.Close()
-
-		err = drv.PutFile(dbExtPath, cipher.NewEncryptReader(dbf))
-		if err != nil {
-			os.Remove(dbPath)
-			return nil, fmt.Errorf("couldn't upload initialized db: %v", err)
-		}
-
-	} else {
-		defer reader.Close()
-		defer file.Close()
-
-		_, err := io.Copy(file, cipher.NewDecryptReader(reader))
-		if err != nil {
-			os.Remove(dbPath)
-			return nil, fmt.Errorf("couldn't copy contents of db to local file: %v", err)
-		}
-	}
-
-	hash, err := drv.ComputeHash(dbPath)
-	if err != nil {
-		os.Remove(dbPath)
-		return nil, fmt.Errorf("couldn't compute hash: %v", err)
-	}
-
+func NewManager(drives []drive.Drive, db *database, cipher *crypto.Crypto, key string) *Manager {
 	m := &Manager{
-		drives: drives,
-		key:    cfg.EncryptionKey,
-		db: dbStat{
-			extDrive: drv,
-			extPath:  dbExtPath,
-
-			dbPath: dbPath,
-			hash:   hash,
-		},
+		drives:  drives,
+		db:      db,
+		key:     key,
 		cache:   newCache(),
 		tracker: newTracker(),
 		cipher:  cipher,
 	}
 
-	go m.checkRemoteChanges()
+	go m.watchRemoteChanges()
 	go m.processLocalChanges()
-
-	return m, nil
-}
-
-func (m *Manager) Close() {
-	os.Remove(m.db.dbPath)
+	return m
 }
 
 func (m *Manager) NotifyChangeInFile(cachePath string, extPath string) {
@@ -121,14 +48,14 @@ func (m *Manager) NotifyChangeInFile(cachePath string, extPath string) {
 }
 
 func (m *Manager) NotifyChangeInDatabase() {
-	m.tracker.Add(m.db.dbPath, common.GetURL(m.db.extDrive, m.db.extPath), cacheForever)
+	m.tracker.Add(m.db.path, common.GetURL(m.db.extDrive, m.db.extPath), cacheForever)
 }
 
 func (m *Manager) Lookup(parent int64, name string) (*common.Metadata, error) {
-	m.rLock()
-	defer m.rUnlock()
+	m.db.rLock()
+	defer m.db.rUnlock()
 
-	db, err := m.getDBClient()
+	db, err := sqlite.NewClient(m.db.path)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -147,10 +74,10 @@ func (m *Manager) Lookup(parent int64, name string) (*common.Metadata, error) {
 }
 
 func (m *Manager) GetMetadata(inode int64) (*common.Metadata, error) {
-	m.rLock()
-	defer m.rUnlock()
+	m.db.rLock()
+	defer m.db.rUnlock()
 
-	db, err := m.getDBClient()
+	db, err := sqlite.NewClient(m.db.path)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -169,8 +96,8 @@ func (m *Manager) GetMetadata(inode int64) (*common.Metadata, error) {
 }
 
 func (m *Manager) UpdateMetadataFromCache(inode int64) error {
-	m.wLock()
-	defer m.wUnlock()
+	m.db.wLock()
+	defer m.db.wUnlock()
 
 	p, found := m.cache.Get(strconv.FormatInt(inode, 10))
 	if !found {
@@ -190,7 +117,7 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 		return fmt.Errorf("couldn't get file stats %s: %v", path, err)
 	}
 
-	db, err := m.getDBClient()
+	db, err := sqlite.NewClient(m.db.path)
 	if err != nil {
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -214,10 +141,10 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 }
 
 func (m *Manager) UpdateMetadata(md *common.Metadata) error {
-	m.wLock()
-	defer m.wUnlock()
+	m.db.wLock()
+	defer m.db.wUnlock()
 
-	db, err := m.getDBClient()
+	db, err := sqlite.NewClient(m.db.path)
 	if err != nil {
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -234,10 +161,10 @@ func (m *Manager) UpdateMetadata(md *common.Metadata) error {
 }
 
 func (m *Manager) GetDirectoryContent(parent int64) ([]common.Metadata, error) {
-	m.rLock()
-	defer m.rUnlock()
+	m.db.rLock()
+	defer m.db.rUnlock()
 
-	db, err := m.getDBClient()
+	db, err := sqlite.NewClient(m.db.path)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -265,10 +192,10 @@ func (m *Manager) GetDirectoryContent(parent int64) ([]common.Metadata, error) {
 }
 
 func (m *Manager) RemoveDirectory(ino int64) error {
-	m.wLock()
-	defer m.wUnlock()
+	m.db.wLock()
+	defer m.db.wUnlock()
 
-	db, err := m.getDBClient()
+	db, err := sqlite.NewClient(m.db.path)
 	if err != nil {
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -301,14 +228,14 @@ func (m *Manager) RemoveDirectory(ino int64) error {
 }
 
 func (m *Manager) RemoveFile(md *common.Metadata) error {
-	m.wLock()
-	defer m.wUnlock()
+	m.db.wLock()
+	defer m.db.wUnlock()
 
 	m.cache.Delete(strconv.FormatInt(md.Inode, 10))
 
 	go m.deleteRemoteFile(md)
 
-	db, err := m.getDBClient()
+	db, err := sqlite.NewClient(m.db.path)
 	if err != nil {
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -349,10 +276,10 @@ func (m *Manager) OpenFile(md *common.Metadata, flag int) (*os.File, error) {
 }
 
 func (m *Manager) AddDirectory(parent int64, name string, mode int) (*common.Metadata, error) {
-	m.wLock()
-	defer m.wUnlock()
+	m.db.wLock()
+	defer m.db.wUnlock()
 
-	db, err := m.getDBClient()
+	db, err := sqlite.NewClient(m.db.path)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -368,10 +295,10 @@ func (m *Manager) AddDirectory(parent int64, name string, mode int) (*common.Met
 }
 
 func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metadata, error) {
-	m.wLock()
-	defer m.wUnlock()
+	m.db.wLock()
+	defer m.db.wUnlock()
 
-	db, err := m.getDBClient()
+	db, err := sqlite.NewClient(m.db.path)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -397,7 +324,7 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metad
 	return md, nil
 }
 
-func (m *Manager) checkRemoteChanges() {
+func (m *Manager) watchRemoteChanges() {
 	for {
 		time.Sleep(checkInterval)
 		m.checkChanges()
@@ -411,8 +338,8 @@ func (m *Manager) checkChanges() {
 		return
 	}
 
-	m.wLock()
-	defer m.wUnlock()
+	m.db.wLock()
+	defer m.db.wUnlock()
 
 	if mdata.Hash == m.db.hash {
 		return
@@ -426,7 +353,7 @@ func (m *Manager) checkChanges() {
 	}
 	defer reader.Close()
 
-	file, err := os.Open(m.db.dbPath)
+	file, err := os.Open(m.db.path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't open db: %v\n", err)
 
@@ -452,8 +379,8 @@ func (m *Manager) processLocalChanges() {
 func (m *Manager) processChanges() {
 	items := m.tracker.Items()
 	m.tracker.Flush()
-	m.rLock()
-	defer m.rUnlock()
+	m.db.rLock()
+	defer m.db.rUnlock()
 
 	for local, it := range items {
 		url := it.Object.(string)
@@ -483,19 +410,15 @@ func (m *Manager) processChanges() {
 			return
 		}
 
-		if local == m.db.dbPath { // if this file is database file
-			m.db.hash, err = m.db.extDrive.ComputeHash(m.db.dbPath)
+		// if this file is database file
+		if local == m.db.path {
+			m.db.hash, err = m.db.extDrive.ComputeHash(m.db.path)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "couldn't compute hash of updated database: %v", err)
 				return
 			}
 		}
 	}
-}
-
-func (m *Manager) getDBClient() (*db.Client, error) {
-	cli, err := db.NewClient(m.db.dbPath)
-	return cli, err
 }
 
 func (m *Manager) getDriveClient(scheme string) (drive.Drive, error) {
@@ -546,20 +469,4 @@ func (m *Manager) deleteRemoteFile(md *common.Metadata) {
 // @TODO: select drive according to available space
 func (m *Manager) selectDrive() drive.Drive {
 	return m.drives[0]
-}
-
-func (m *Manager) wLock() {
-	m.db.mux.Lock()
-}
-
-func (m *Manager) wUnlock() {
-	m.db.mux.Unlock()
-}
-
-func (m *Manager) rLock() {
-	m.db.mux.RLock()
-}
-
-func (m *Manager) rUnlock() {
-	m.db.mux.RUnlock()
 }

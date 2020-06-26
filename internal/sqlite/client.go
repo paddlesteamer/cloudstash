@@ -1,4 +1,4 @@
-package db
+package sqlite
 
 import (
 	"database/sql"
@@ -54,13 +54,10 @@ func InitDB(path string) error {
 func NewClient(path string) (*Client, error) {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't open db at %s: %v", path, err)
+		return nil, fmt.Errorf("could not open DB at %s: %v", path, err)
 	}
 
-	c := &Client{
-		db: db,
-	}
-	return c, nil
+	return &Client{db}, nil
 }
 
 // Close terminates database connection.
@@ -286,7 +283,8 @@ func (c *Client) fillNLink(md *common.Metadata) error {
 		return fmt.Errorf("couldn't parse row count")
 	}
 
-	md.NLink = count + 2 // don't forget '.' and '..' dirs
+	// don't forget '.' and '..' dirs
+	md.NLink = count + 2
 	return nil
 }
 
