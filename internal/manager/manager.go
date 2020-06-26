@@ -10,6 +10,7 @@ import (
 
 	"github.com/paddlesteamer/hdn-drv/internal/common"
 	"github.com/paddlesteamer/hdn-drv/internal/config"
+	"github.com/paddlesteamer/hdn-drv/internal/crypto"
 	"github.com/paddlesteamer/hdn-drv/internal/db"
 	"github.com/paddlesteamer/hdn-drv/internal/drive"
 	"github.com/patrickmn/go-cache"
@@ -29,6 +30,7 @@ type Manager struct {
 	db      dbStat
 	c       *cache.Cache
 	tracker *cache.Cache
+	cipher  *crypto.Crypto
 }
 
 const (
@@ -62,6 +64,8 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		return nil, fmt.Errorf("couldn't find a drive matching database file scheme")
 	}
 
+	cipher := crypto.NewCrypto(conf.EncryptionKey)
+
 	file, err := common.NewTempDBFile()
 	if err != nil {
 		return nil, fmt.Errorf("manager: unable to create database file: %v", err)
@@ -88,7 +92,7 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		}
 		defer dbf.Close()
 
-		err = drv.PutFile(dbExtPath, dbf)
+		err = drv.PutFile(dbExtPath, cipher.NewEncryptReader(dbf))
 		if err != nil {
 			os.Remove(dbPath)
 			return nil, fmt.Errorf("couldn't upload initialiezed db: %v", err)
@@ -98,7 +102,7 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		defer reader.Close()
 		defer file.Close()
 
-		_, err := io.Copy(file, reader)
+		_, err := io.Copy(file, cipher.NewDecryptReader(reader))
 		if err != nil {
 			os.Remove(dbPath)
 			return nil, fmt.Errorf("couldn't copy contents of db to local file: %v", err)
@@ -123,6 +127,7 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		},
 		c:       newCache(),
 		tracker: newTracker(),
+		cipher:  cipher,
 	}
 
 	go m.checkRemoteChanges()
@@ -453,7 +458,7 @@ func (m *Manager) checkChanges() {
 	}
 	defer file.Close()
 
-	_, err = io.Copy(file, reader)
+	_, err = io.Copy(file, m.cipher.NewDecryptReader(reader))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't copy contents of updated db file to local file: %v\n", err)
 
@@ -499,9 +504,9 @@ func (m *Manager) processChanges() {
 		}
 		defer file.Close()
 
-		err = drv.PutFile(u.Path, file)
+		err = drv.PutFile(u.Path, m.cipher.NewEncryptReader(file))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't upload database file: %v", err)
+			fmt.Fprintf(os.Stderr, "couldn't upload file: %v", err)
 			return
 		}
 
@@ -555,7 +560,7 @@ func (m *Manager) downloadFile(md *common.Metadata) (string, error) {
 	}
 	defer tmpfile.Close()
 
-	_, err = io.Copy(tmpfile, reader)
+	_, err = io.Copy(tmpfile, m.cipher.NewDecryptReader(reader))
 	if err != nil && err != io.EOF {
 		return "", fmt.Errorf("couldn't copy contents of downloaded file to cache: %v", err)
 	}
