@@ -88,20 +88,20 @@ func findMatchingDriveIdx(url *common.FileURL, drives []drive.Drive) (idx int, e
 
 func initAndUploadDB(drv *drive.Drive, dbPath, dbExtPath string, cipher *crypto.Crypto) error {
 	if err := sqlite.InitDB(dbPath); err != nil {
-		return fmt.Errorf("couldn't initialize db: %v", err)
+		return fmt.Errorf("could not initialize DB: %v", err)
 	}
 
 	dbFile, err := os.Open(dbPath)
 	if err != nil {
 		os.Remove(dbPath)
-		return fmt.Errorf("couldn't open intitialized db: %v", err)
+		return fmt.Errorf("could not open intitialized DB: %v", err)
 	}
 	defer dbFile.Close()
 
 	err = (*drv).PutFile(dbExtPath, cipher.NewEncryptReader(dbFile))
 	if err != nil {
 		os.Remove(dbPath)
-		return fmt.Errorf("couldn't upload initialized db: %v", err)
+		return fmt.Errorf("could not upload initialized DB: %v", err)
 	}
 
 	return nil
@@ -112,14 +112,17 @@ func initOrImportDB(drv drive.Drive, file *os.File, extPath string, cipher *cryp
 
 	if err == drive.ErrNotFound {
 		initAndUploadDB(&drv, file.Name(), extPath, cipher)
+		return nil
 	} else if err != nil {
-		log.Fatalf("couldn't get file: %v", err)
+		return fmt.Errorf("could not get file: %v", err)
 	} else {
 		defer reader.Close()
 		_, err := io.Copy(file, cipher.NewDecryptReader(reader))
 		if err != nil {
 			os.Remove(file.Name())
-			log.Fatalf("couldn't copy contents of db to local file: %v", err)
+			return fmt.Errorf("could not copy contents of DB to local file: %v", err)
 		}
 	}
+
+	return nil
 }
