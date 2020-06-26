@@ -55,7 +55,7 @@ func (m *Manager) Lookup(parent int64, name string) (*common.Metadata, error) {
 	m.db.rLock()
 	defer m.db.rUnlock()
 
-	db, err := sqlite.NewClient(m.db.path)
+	db, err := sqlite.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -77,7 +77,7 @@ func (m *Manager) GetMetadata(inode int64) (*common.Metadata, error) {
 	m.db.rLock()
 	defer m.db.rUnlock()
 
-	db, err := sqlite.NewClient(m.db.path)
+	db, err := sqlite.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -117,7 +117,7 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 		return fmt.Errorf("couldn't get file stats %s: %v", path, err)
 	}
 
-	db, err := sqlite.NewClient(m.db.path)
+	db, err := sqlite.NewClient()
 	if err != nil {
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -144,7 +144,7 @@ func (m *Manager) UpdateMetadata(md *common.Metadata) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	db, err := sqlite.NewClient(m.db.path)
+	db, err := sqlite.NewClient()
 	if err != nil {
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -164,7 +164,7 @@ func (m *Manager) GetDirectoryContent(parent int64) ([]common.Metadata, error) {
 	m.db.rLock()
 	defer m.db.rUnlock()
 
-	db, err := sqlite.NewClient(m.db.path)
+	db, err := sqlite.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -195,7 +195,7 @@ func (m *Manager) RemoveDirectory(ino int64) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	db, err := sqlite.NewClient(m.db.path)
+	db, err := sqlite.NewClient()
 	if err != nil {
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -235,7 +235,7 @@ func (m *Manager) RemoveFile(md *common.Metadata) error {
 
 	go m.deleteRemoteFile(md)
 
-	db, err := sqlite.NewClient(m.db.path)
+	db, err := sqlite.NewClient()
 	if err != nil {
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -279,7 +279,7 @@ func (m *Manager) AddDirectory(parent int64, name string, mode int) (*common.Met
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	db, err := sqlite.NewClient(m.db.path)
+	db, err := sqlite.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -298,7 +298,7 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metad
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	db, err := sqlite.NewClient(m.db.path)
+	db, err := sqlite.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}

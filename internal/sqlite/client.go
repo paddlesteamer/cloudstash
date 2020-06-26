@@ -12,8 +12,10 @@ type Client struct {
 	db *sql.DB
 }
 
-var tableSchemas = [...]string{
-	`CREATE TABLE files (
+var (
+	filePath     string
+	tableSchemas = [...]string{
+		`CREATE TABLE files (
 		"inode"  INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 		"name"   TEXT NOT NULL,
 		"url"    TEXT NOT NULL DEFAULT "",
@@ -24,8 +26,9 @@ var tableSchemas = [...]string{
 		UNIQUE("name", "parent"),
 		FOREIGN KEY("parent") REFERENCES folders("id")
 	);`,
-	fmt.Sprintf(`INSERT INTO files(inode, name, mode, parent, type) VALUES (1, "", 493, 0, %d);`, common.DRV_FOLDER), // root folder with mode 0755
-}
+		fmt.Sprintf(`INSERT INTO files(inode, name, mode, parent, type) VALUES (1, "", 493, 0, %d);`, common.DRV_FOLDER), // root folder with mode 0755
+	}
+)
 
 // InitDB initializes tables. Supposed to be called on the very first run.
 func InitDB(path string) error {
@@ -47,14 +50,15 @@ func InitDB(path string) error {
 		}
 	}
 
+	filePath = path
 	return nil
 }
 
 // NewClient returns a new database connection.
-func NewClient(path string) (*Client, error) {
-	db, err := sql.Open("sqlite3", path)
+func NewClient() (*Client, error) {
+	db, err := sql.Open("sqlite3", filePath)
 	if err != nil {
-		return nil, fmt.Errorf("could not open DB at %s: %v", path, err)
+		return nil, fmt.Errorf("could not open DB at %s: %v", filePath, err)
 	}
 
 	return &Client{db}, nil
