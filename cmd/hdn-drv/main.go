@@ -33,7 +33,7 @@ func main() {
 		log.Fatalf("could not match DB file to any of the available drives: %v", err)
 	}
 
-	m, err := manager.NewManager(cfg, drives, idx)
+	m, err := manager.NewManager(cfg, url, drives, drives[idx])
 	if err != nil {
 		log.Fatal(err)
 	}
