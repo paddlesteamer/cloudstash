@@ -1,6 +1,11 @@
 package drive
 
-import "io"
+import (
+	"errors"
+	"io"
+)
+
+var ErrNotFound = errors.New("not found")
 
 type Drive interface {
 	GetProviderName() string

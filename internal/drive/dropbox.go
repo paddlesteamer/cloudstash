@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files"
@@ -35,6 +36,12 @@ func (d *Dropbox) GetFile(path string) (*Metadata, io.ReadCloser, error) {
 	args := files.NewDownloadArg(path)
 	metadata, r, err := d.client.Download(args)
 	if err != nil {
+		if strings.Contains(err.Error(), "not_found") { // no other way to distinguish not found error
+			return nil, nil, ErrNotFound
+		}
+
+		fmt.Println(err.Error())
+
 		return nil, nil, fmt.Errorf("could not get file from dropbox %s: %v", path, err)
 	}
 
