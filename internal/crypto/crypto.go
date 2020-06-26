@@ -203,17 +203,17 @@ func pad(chunk []byte, blockSize int) []byte {
 }
 
 func unpad(chunk []byte, blockSize int) []byte {
-	padlength := int(chunk[len(chunk) - 1])
+	padlength := int(chunk[len(chunk)-1])
 
 	if padlength >= 16 {
 		return chunk
 	}
 
-	for i := len(chunk) -1; i > len(chunk) - padlength; i-- { // good ol' for loop
+	for i := len(chunk) - 1; i > len(chunk)-padlength; i-- { // good ol' for loop
 		if chunk[i] != byte(padlength) {
 			return chunk
 		}
 	}
 
-	return chunk[:len(chunk) - padlength]
+	return chunk[:len(chunk)-padlength]
 }
