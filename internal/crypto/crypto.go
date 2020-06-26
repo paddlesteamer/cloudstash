@@ -168,7 +168,9 @@ func (c *Crypto) decrypt(r io.Reader, w io.WriteCloser) {
 			return
 		}
 
-		_, err = w.Write(ciphertext)
+		unpadded := unpad(ciphertext, block.BlockSize())
+
+		_, err = w.Write(unpadded)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "couldn't write decrypted data to buffer: %v\n", err)
 
@@ -195,7 +197,23 @@ func pad(chunk []byte, blockSize int) []byte {
 		return chunk
 	}
 
-	padtext := bytes.Repeat([]byte{0x00}, padlength)
+	padtext := bytes.Repeat([]byte{byte(padlength)}, padlength)
 
 	return append(chunk, padtext...)
+}
+
+func unpad(chunk []byte, blockSize int) []byte {
+	padlength := int(chunk[len(chunk) - 1])
+
+	if padlength >= 16 {
+		return chunk
+	}
+
+	for i := len(chunk) -1; i > len(chunk) - padlength; i-- { // good ol' for loop
+		if chunk[i] != byte(padlength) {
+			return chunk
+		}
+	}
+
+	return chunk[:len(chunk) - padlength]
 }
