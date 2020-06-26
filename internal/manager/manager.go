@@ -77,6 +77,9 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 
 	_, reader, err := drv.GetFile(dbExtPath)
 	if err != nil { // TODO: check specific 'not found' error
+		if err != drive.ErrNotFound {
+			return nil, fmt.Errorf("couldn't get file: %v", err)
+		}
 		// below is for not found error
 		file.Close()
 
@@ -95,7 +98,7 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 		err = drv.PutFile(dbExtPath, cipher.NewEncryptReader(dbf))
 		if err != nil {
 			os.Remove(dbPath)
-			return nil, fmt.Errorf("couldn't upload initialiezed db: %v", err)
+			return nil, fmt.Errorf("couldn't upload initialized db: %v", err)
 		}
 
 	} else {
