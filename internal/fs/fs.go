@@ -17,11 +17,7 @@ type HdnDrvFs struct {
 }
 
 func NewHdnDrvFs(m *manager.Manager) *HdnDrvFs {
-	filesystem := &HdnDrvFs{
-		manager: m,
-	}
-
-	return filesystem
+	return &HdnDrvFs{manager: m}
 }
 
 func (r *HdnDrvFs) StatFs(ino int64) (*fuse.StatVFS, fuse.Status) {
