@@ -27,8 +27,7 @@ var tableSchemas = [...]string{
 	fmt.Sprintf(`INSERT INTO files(inode, name, mode, parent, type) VALUES (1, "", 493, 0, %d);`, common.DRV_FOLDER), // root folder with mode 0755
 }
 
-// InitDB initializes tables
-// Supposed to be called on the very first run
+// InitDB initializes tables. Supposed to be called on the very first run.
 func InitDB(path string) error {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
@@ -51,7 +50,7 @@ func InitDB(path string) error {
 	return nil
 }
 
-// NewClient returns a new database connection
+// NewClient returns a new database connection.
 func NewClient(path string) (*Client, error) {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
@@ -64,7 +63,7 @@ func NewClient(path string) (*Client, error) {
 	return c, nil
 }
 
-// Close terminates database connection
+// Close terminates database connection.
 func (c *Client) Close() {
 	c.db.Close()
 }
@@ -206,8 +205,8 @@ func (c *Client) AddDirectory(parent int64, name string, mode int) (*common.Meta
 		return nil, err
 	}
 
-	md.NLink = 2 // since it's just created, there are only '.' and '..'
-
+	// since the directory has just been created, there are only '.' and '..'
+	md.NLink = 2
 	return md, nil
 }
 
@@ -242,8 +241,8 @@ func (c *Client) CreateFile(parent int64, name string, mode int, url string) (*c
 		return nil, err
 	}
 
-	md.NLink = 1 // it's file and hardlink isn't supported
-
+	// it's file and hardlink isn't supported
+	md.NLink = 1
 	return md, nil
 }
 
@@ -293,9 +292,7 @@ func (c *Client) fillNLink(md *common.Metadata) error {
 
 func (c *Client) parseRow(row *sql.Rows) (*common.Metadata, error) {
 	md := &common.Metadata{}
-
-	err := row.Scan(&md.Inode, &md.Name, &md.URL,
-		&md.Size, &md.Mode, &md.Parent, &md.Type)
+	err := row.Scan(&md.Inode, &md.Name, &md.URL, &md.Size, &md.Mode, &md.Parent, &md.Type)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't parse row: %v", err)
 	}

@@ -16,7 +16,9 @@ import (
 
 const chunkSize = 4 * 1024
 
-var salt = []byte{0x32, 0x24, 0x45, 0xa3, 0xb3, 0x89, 0x83, 0x56, 0x24, 0x66, 0x61, 0x18, 0x19, 0xc2, 0xff, 0xd0}
+var salt = []byte{
+	0x32, 0x24, 0x45, 0xa3, 0xb3, 0x89, 0x83, 0x56, 0x24, 0x66, 0x61, 0x18, 0x19, 0xc2, 0xff, 0xd0,
+}
 
 type Crypto struct {
 	key []byte
@@ -24,27 +26,18 @@ type Crypto struct {
 
 func NewCrypto(key string) *Crypto {
 	derived := pbkdf2.Key([]byte(key), salt, 4096, aes.BlockSize, sha256.New)
-
-	c := &Crypto{
-		key: derived,
-	}
-
-	return c
+	return &Crypto{derived}
 }
 
 func (c *Crypto) NewEncryptReader(r io.Reader) io.Reader {
 	pr, pw := io.Pipe()
-
 	go c.encrypt(r, pw)
-
 	return pr
 }
 
 func (c *Crypto) NewDecryptReader(r io.Reader) io.Reader {
 	pr, pw := io.Pipe()
-
 	go c.decrypt(r, pw)
-
 	return pr
 }
 
@@ -74,7 +67,6 @@ func (c *Crypto) encrypt(r io.Reader, w io.WriteCloser) {
 		}
 
 		padded := pad(chunk[:n], block.BlockSize())
-
 		mac := c.computeHMAC(padded)
 
 		_, err = w.Write(mac)
@@ -100,7 +92,6 @@ func (c *Crypto) encrypt(r io.Reader, w io.WriteCloser) {
 		_, err = w.Write(ciphertext)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "couldn't write ciphertext to buffer: %v\n", err)
-
 			return
 		}
 
@@ -108,7 +99,6 @@ func (c *Crypto) encrypt(r io.Reader, w io.WriteCloser) {
 			break
 		}
 	}
-
 }
 
 func (c *Crypto) decrypt(r io.Reader, w io.WriteCloser) {
@@ -134,7 +124,6 @@ func (c *Crypto) decrypt(r io.Reader, w io.WriteCloser) {
 			n, err := r.Read(chunk[ntotal:])
 			if err != nil && err != io.EOF {
 				fmt.Fprintf(os.Stderr, "couldn't read HMAC from reader: %v\n", err)
-
 				return
 			}
 
@@ -154,17 +143,14 @@ func (c *Crypto) decrypt(r io.Reader, w io.WriteCloser) {
 
 		if (len(ciphertext) % block.BlockSize()) != 0 {
 			fmt.Fprintf(os.Stderr, "malformed file: blocksize error(ciphertext length: %d)\n", len(ciphertext))
-
 			return
 		}
 
 		dec := cipher.NewCBCDecrypter(block, iv)
-
 		dec.CryptBlocks(ciphertext, ciphertext)
 
 		if !hmac.Equal(mac, c.computeHMAC(ciphertext)) {
 			fmt.Fprintf(os.Stderr, "file might be altered!\n")
-
 			return
 		}
 
@@ -173,7 +159,6 @@ func (c *Crypto) decrypt(r io.Reader, w io.WriteCloser) {
 		_, err = w.Write(unpadded)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "couldn't write decrypted data to buffer: %v\n", err)
-
 			return
 		}
 
@@ -186,25 +171,21 @@ func (c *Crypto) decrypt(r io.Reader, w io.WriteCloser) {
 func (c *Crypto) computeHMAC(chunk []byte) []byte {
 	mac := hmac.New(sha256.New, c.key)
 	mac.Write(chunk)
-
 	return mac.Sum(nil)
 }
 
 func pad(chunk []byte, blockSize int) []byte {
 	padlength := blockSize - (len(chunk) % blockSize)
-
 	if padlength == blockSize {
 		return chunk
 	}
 
 	padtext := bytes.Repeat([]byte{byte(padlength)}, padlength)
-
 	return append(chunk, padtext...)
 }
 
 func unpad(chunk []byte, blockSize int) []byte {
 	padlength := int(chunk[len(chunk)-1])
-
 	if padlength >= 16 {
 		return chunk
 	}

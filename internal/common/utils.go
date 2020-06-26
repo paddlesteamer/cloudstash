@@ -28,12 +28,10 @@ func ParseURL(fileUrl string) (*FileURL, error) {
 		return nil, fmt.Errorf("couldn't parse url '%s': %v", fileUrl, err)
 	}
 
-	fu := &FileURL{
+	return &FileURL{
 		Scheme: u.Scheme,
 		Path:   fmt.Sprintf("/%s%s", u.Host, u.Path),
-	}
-
-	return fu, nil
+	}, nil
 }
 
 func GetURL(drv drive.Drive, name string) string {

@@ -28,7 +28,7 @@ type Manager struct {
 	drives  []drive.Drive
 	key     string
 	db      dbStat
-	c       *cache.Cache
+	cache   *cache.Cache
 	tracker *cache.Cache
 	cipher  *crypto.Crypto
 }
@@ -38,39 +38,12 @@ const (
 	processInterval time.Duration = 5 * time.Second
 )
 
-func NewManager(conf *config.Configuration) (*Manager, error) {
-	key := conf.EncryptionKey
-
-	drives := []drive.Drive{}
-	if conf.Dropbox != nil {
-		dbx := drive.NewDropboxClient(conf.Dropbox)
-		drives = append(drives, dbx)
-	}
-
-	fu, err := common.ParseURL(conf.DatabaseFile)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't parse database file url: %v", err)
-	}
-
-	var drv drive.Drive = nil
-	for _, d := range drives {
-		if d.GetProviderName() == fu.Scheme {
-			drv = d
-			break
-		}
-	}
-
-	if drv == nil {
-		return nil, fmt.Errorf("couldn't find a drive matching database file scheme")
-	}
-
-	cipher := crypto.NewCrypto(conf.EncryptionKey)
-
+func NewManager(cfg config.Cfg, fu *common.FileURL, drives []drive.Drive, drv drive.Drive) (*Manager, error) {
+	cipher := crypto.NewCrypto(cfg.EncryptionKey)
 	file, err := common.NewTempDBFile()
 	if err != nil {
 		return nil, fmt.Errorf("manager: unable to create database file: %v", err)
 	}
-	// defer dbf.Close() close manually, at least shouldn't be deferred here
 
 	dbExtPath := fu.Path
 	dbPath := file.Name()
@@ -120,7 +93,7 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 
 	m := &Manager{
 		drives: drives,
-		key:    key,
+		key:    cfg.EncryptionKey,
 		db: dbStat{
 			extDrive: drv,
 			extPath:  dbExtPath,
@@ -128,7 +101,7 @@ func NewManager(conf *config.Configuration) (*Manager, error) {
 			dbPath: dbPath,
 			hash:   hash,
 		},
-		c:       newCache(),
+		cache:   newCache(),
 		tracker: newTracker(),
 		cipher:  cipher,
 	}
@@ -199,7 +172,7 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 	m.wLock()
 	defer m.wUnlock()
 
-	p, found := m.c.Get(strconv.FormatInt(inode, 10))
+	p, found := m.cache.Get(strconv.FormatInt(inode, 10))
 	if !found {
 		return fmt.Errorf("the file hasn't beed cached")
 	}
@@ -307,7 +280,7 @@ func (m *Manager) RemoveDirectory(ino int64) error {
 	}
 
 	for _, md := range mdList {
-		m.c.Delete(strconv.FormatInt(md.Inode, 10))
+		m.cache.Delete(strconv.FormatInt(md.Inode, 10))
 
 		go m.deleteRemoteFile(&md)
 	}
@@ -326,11 +299,12 @@ func (m *Manager) RemoveDirectory(ino int64) error {
 
 	return nil
 }
+
 func (m *Manager) RemoveFile(md *common.Metadata) error {
 	m.wLock()
 	defer m.wUnlock()
 
-	m.c.Delete(strconv.FormatInt(md.Inode, 10))
+	m.cache.Delete(strconv.FormatInt(md.Inode, 10))
 
 	go m.deleteRemoteFile(md)
 
@@ -353,7 +327,7 @@ func (m *Manager) RemoveFile(md *common.Metadata) error {
 func (m *Manager) OpenFile(md *common.Metadata, flag int) (*os.File, error) {
 	var path string
 
-	p, found := m.c.Get(strconv.FormatInt(md.Inode, 10))
+	p, found := m.cache.Get(strconv.FormatInt(md.Inode, 10))
 	if !found {
 		p, err := m.downloadFile(md)
 		if err != nil {
@@ -364,7 +338,7 @@ func (m *Manager) OpenFile(md *common.Metadata, flag int) (*os.File, error) {
 	} else {
 		path = p.(string)
 	}
-	m.c.Set(strconv.FormatInt(md.Inode, 10), path, cacheExpiration) // update expiration
+	m.cache.Set(strconv.FormatInt(md.Inode, 10), path, cacheExpiration) // update expiration
 
 	file, err := os.OpenFile(path, flag, os.ModeAppend)
 	if err != nil {
@@ -415,7 +389,7 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metad
 	}
 	tmpfile.Close()
 
-	m.c.Set(strconv.FormatInt(md.Inode, 10), tmpfile.Name(), cacheExpiration)
+	m.cache.Set(strconv.FormatInt(md.Inode, 10), tmpfile.Name(), cacheExpiration)
 
 	m.NotifyChangeInDatabase()
 	m.NotifyChangeInFile(tmpfile.Name(), md.URL)
@@ -426,7 +400,6 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metad
 func (m *Manager) checkRemoteChanges() {
 	for {
 		time.Sleep(checkInterval)
-
 		m.checkChanges()
 	}
 }
@@ -470,10 +443,8 @@ func (m *Manager) checkChanges() {
 }
 
 func (m *Manager) processLocalChanges() {
-
 	for {
 		time.Sleep(processInterval)
-
 		m.processChanges()
 	}
 }
@@ -481,7 +452,6 @@ func (m *Manager) processLocalChanges() {
 func (m *Manager) processChanges() {
 	items := m.tracker.Items()
 	m.tracker.Flush()
-
 	m.rLock()
 	defer m.rUnlock()
 
@@ -520,13 +490,11 @@ func (m *Manager) processChanges() {
 				return
 			}
 		}
-
 	}
 }
 
 func (m *Manager) getDBClient() (*db.Client, error) {
 	cli, err := db.NewClient(m.db.dbPath)
-
 	return cli, err
 }
 
@@ -572,7 +540,7 @@ func (m *Manager) downloadFile(md *common.Metadata) (string, error) {
 }
 
 func (m *Manager) deleteRemoteFile(md *common.Metadata) {
-
+	// @TODO: implement
 }
 
 // @TODO: select drive according to available space
