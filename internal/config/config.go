@@ -11,27 +11,24 @@ type DropboxCredentials struct {
 	AccessToken string
 }
 
-type Configuration struct {
+type Cfg struct {
 	EncryptionKey string
 	Dropbox       *DropboxCredentials
 	DatabaseFile  string
 	MountPoint    string
 }
 
-func ParseConfig(path string) (*Configuration, error) {
+func ParseConfig(path string) (cfg Cfg, err error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("unable to open configuration file: %v", err)
+		return cfg, fmt.Errorf("unable to open config file: %v", err)
 	}
 	defer f.Close()
 
 	decoder := json.NewDecoder(f)
-	conf := Configuration{}
-
-	err = decoder.Decode(&conf)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse config json: %v", err)
+	if err = decoder.Decode(&cfg); err != nil {
+		return cfg, fmt.Errorf("unable to parse config json: %v", err)
 	}
 
-	return &conf, nil
+	return cfg, nil
 }

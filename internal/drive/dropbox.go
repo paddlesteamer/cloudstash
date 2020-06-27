@@ -40,8 +40,6 @@ func (d *Dropbox) GetFile(path string) (*Metadata, io.ReadCloser, error) {
 			return nil, nil, ErrNotFound
 		}
 
-		fmt.Println(err.Error())
-
 		return nil, nil, fmt.Errorf("could not get file from dropbox %s: %v", path, err)
 	}
 

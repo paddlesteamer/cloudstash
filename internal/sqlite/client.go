@@ -1,4 +1,4 @@
-package db
+package sqlite
 
 import (
 	"database/sql"
@@ -12,8 +12,10 @@ type Client struct {
 	db *sql.DB
 }
 
-var tableSchemas = [...]string{
-	`CREATE TABLE files (
+var (
+	filePath     string
+	tableSchemas = [...]string{
+		`CREATE TABLE files (
 		"inode"  INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 		"name"   TEXT NOT NULL,
 		"url"    TEXT NOT NULL DEFAULT "",
@@ -24,11 +26,11 @@ var tableSchemas = [...]string{
 		UNIQUE("name", "parent"),
 		FOREIGN KEY("parent") REFERENCES folders("id")
 	);`,
-	fmt.Sprintf(`INSERT INTO files(inode, name, mode, parent, type) VALUES (1, "", 493, 0, %d);`, common.DRV_FOLDER), // root folder with mode 0755
-}
+		fmt.Sprintf(`INSERT INTO files(inode, name, mode, parent, type) VALUES (1, "", 493, 0, %d);`, common.DRV_FOLDER), // root folder with mode 0755
+	}
+)
 
-// InitDB initializes tables
-// Supposed to be called on the very first run
+// InitDB initializes tables. Supposed to be called on the very first run.
 func InitDB(path string) error {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
@@ -48,23 +50,27 @@ func InitDB(path string) error {
 		}
 	}
 
+	SetPath(path)
+
 	return nil
 }
 
-// NewClient returns a new database connection
-func NewClient(path string) (*Client, error) {
-	db, err := sql.Open("sqlite3", path)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't open db at %s: %v", path, err)
-	}
-
-	c := &Client{
-		db: db,
-	}
-	return c, nil
+// SetPath sets database file path
+func SetPath(path string) {
+	filePath = path
 }
 
-// Close terminates database connection
+// NewClient returns a new database connection.
+func NewClient() (*Client, error) {
+	db, err := sql.Open("sqlite3", filePath)
+	if err != nil {
+		return nil, fmt.Errorf("could not open DB at %s: %v", filePath, err)
+	}
+
+	return &Client{db}, nil
+}
+
+// Close terminates database connection.
 func (c *Client) Close() {
 	c.db.Close()
 }
@@ -206,8 +212,8 @@ func (c *Client) AddDirectory(parent int64, name string, mode int) (*common.Meta
 		return nil, err
 	}
 
-	md.NLink = 2 // since it's just created, there are only '.' and '..'
-
+	// since the directory has just been created, there are only '.' and '..'
+	md.NLink = 2
 	return md, nil
 }
 
@@ -242,8 +248,8 @@ func (c *Client) CreateFile(parent int64, name string, mode int, url string) (*c
 		return nil, err
 	}
 
-	md.NLink = 1 // it's file and hardlink isn't supported
-
+	// it's file and hardlink isn't supported
+	md.NLink = 1
 	return md, nil
 }
 
@@ -287,15 +293,14 @@ func (c *Client) fillNLink(md *common.Metadata) error {
 		return fmt.Errorf("couldn't parse row count")
 	}
 
-	md.NLink = count + 2 // don't forget '.' and '..' dirs
+	// don't forget '.' and '..' dirs
+	md.NLink = count + 2
 	return nil
 }
 
 func (c *Client) parseRow(row *sql.Rows) (*common.Metadata, error) {
 	md := &common.Metadata{}
-
-	err := row.Scan(&md.Inode, &md.Name, &md.URL,
-		&md.Size, &md.Mode, &md.Parent, &md.Type)
+	err := row.Scan(&md.Inode, &md.Name, &md.URL, &md.Size, &md.Mode, &md.Parent, &md.Type)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't parse row: %v", err)
 	}
