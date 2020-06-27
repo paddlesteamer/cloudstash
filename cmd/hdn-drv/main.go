@@ -36,24 +36,20 @@ func main() {
 		log.Fatalf("could not match DB file to any of the available drives: %v", err)
 	}
 
-	file, err := common.NewTempDBFile()
-	if err != nil {
-		log.Fatalf("could not create DB file: %v", err)
-	}
-	defer file.Close()
-
 	cipher := crypto.NewCrypto(cfg.EncryptionKey)
-	if err := initOrImportDB(drives[idx], file, url.Path, cipher); err != nil {
+
+	dbPath, err := initOrImportDB(drives[idx], url.Path, cipher)
+	if err != nil {
 		log.Fatalf("could not initialize or import an existing DB file: %v", err)
 	}
 
-	hash, err := drives[idx].ComputeHash(file.Name())
+	hash, err := drives[idx].ComputeHash(dbPath)
 	if err != nil {
-		os.Remove(file.Name())
+		os.Remove(dbPath)
 		log.Fatalf("could not compute hash: %v", err)
 	}
 
-	db := manager.NewDB(file.Name(), url.Path, hash, drives[idx])
+	db := manager.NewDB(dbPath, url.Path, hash, drives[idx])
 	defer db.Close()
 
 	m := manager.NewManager(drives, db, cipher, cfg.EncryptionKey)
@@ -107,22 +103,35 @@ func initAndUploadDB(drv *drive.Drive, dbPath, dbExtPath string, cipher *crypto.
 	return nil
 }
 
-func initOrImportDB(drv drive.Drive, file *os.File, extPath string, cipher *crypto.Crypto) error {
+func initOrImportDB(drv drive.Drive, extPath string, cipher *crypto.Crypto) (string, error) {
+	file, err := common.NewTempDBFile()
+	if err != nil {
+		return "", fmt.Errorf("could not create DB file: %v", err)
+	}
+	defer file.Close()
+
 	_, reader, err := drv.GetFile(extPath)
 
 	if err == drive.ErrNotFound {
-		initAndUploadDB(&drv, file.Name(), extPath, cipher)
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("could not get file: %v", err)
-	} else {
-		defer reader.Close()
-		_, err := io.Copy(file, cipher.NewDecryptReader(reader))
-		if err != nil {
-			os.Remove(file.Name())
-			return fmt.Errorf("could not copy contents of DB to local file: %v", err)
+		file.Close() // should be closed before initialization
+
+		if err := initAndUploadDB(&drv, file.Name(), extPath, cipher); err != nil {
+			return "", fmt.Errorf("could not initialize DB: %v", err)
 		}
+
+		return file.Name(), nil
+	} else if err != nil {
+		return "", fmt.Errorf("could not get file: %v", err)
+	}
+	defer reader.Close()
+
+	_, err = io.Copy(file, cipher.NewDecryptReader(reader))
+	if err != nil {
+		os.Remove(file.Name())
+		return "", fmt.Errorf("could not copy contents of DB to local file: %v", err)
 	}
 
-	return nil
+	sqlite.SetPath(file.Name())
+
+	return file.Name(), nil
 }

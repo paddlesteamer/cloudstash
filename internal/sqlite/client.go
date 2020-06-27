@@ -50,8 +50,14 @@ func InitDB(path string) error {
 		}
 	}
 
-	filePath = path
+	SetPath(path)
+
 	return nil
+}
+
+// SetPath sets database file path
+func SetPath(path string) {
+	filePath = path
 }
 
 // NewClient returns a new database connection.
