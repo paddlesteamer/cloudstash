@@ -5,6 +5,7 @@ go 1.14
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dropbox/dropbox-sdk-go-unofficial v5.6.0+incompatible
+	github.com/icza/gox v0.0.0-20200615201046-5fb07725cc03
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible

@@ -1,11 +1,14 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"syscall"
 
+	"github.com/paddlesteamer/hdn-drv/internal/auth"
 	"github.com/paddlesteamer/hdn-drv/internal/common"
 	"github.com/paddlesteamer/hdn-drv/internal/config"
 	"github.com/paddlesteamer/hdn-drv/internal/crypto"
@@ -14,19 +17,61 @@ import (
 	"github.com/paddlesteamer/hdn-drv/internal/manager"
 	"github.com/paddlesteamer/hdn-drv/internal/sqlite"
 	"github.com/vgough/go-fuse-c/fuse"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 func main() {
-	cfg, err := config.ParseConfig("config.json")
-	if err != nil {
-		log.Fatal(err)
+	var cfgDir string
+	var mntDir string
+
+	flag.StringVar(&cfgDir, "c", "", "Application config directory. Optional.")
+	flag.StringVar(&mntDir, "m", "", "Application mount directory. Optional.")
+	flag.Parse()
+
+	var cfg *config.Cfg
+	if !config.DoesConfigExist(cfgDir) {
+		fmt.Print("Encryption key: ")
+		pwd, err := terminal.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			log.Fatalf("couldn't read password from terminal\n")
+		}
+
+		dbxToken, err := auth.GetDropboxToken(common.DROPBOX_APP_KEY)
+		if err != nil {
+			log.Fatalf("couldn't get dropbox access token: %v\n", err)
+		}
+
+		mnt := config.GetMountPoint(mntDir)
+
+		cfg = &config.Cfg{
+			EncryptionKey: string(pwd),
+			MountPoint:    mnt,
+			Dropbox: &config.DropboxCredentials{
+				AccessToken: dbxToken,
+			},
+		}
+
+		if err := config.WriteConfig(cfgDir, cfg); err != nil {
+			log.Fatalf("couldn't create config file: %v\n", err)
+		}
+
+	} else {
+		c, err := config.ParseConfig(cfgDir)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		cfg = c
 	}
 
-	// @TODO: check if mount point exists, create directory if necessary
+	if err := config.CreateMountPoint(cfg.MountPoint); err != nil {
+		log.Fatalf("couldn't create mount directory: %v\n", err)
+	}
+
 	fmt.Printf("mount point: %s\n", cfg.MountPoint)
 
 	drives := collectDrives(cfg)
-	url, err := common.ParseURL(cfg.DatabaseFile)
+	url, err := common.ParseURL(common.DATABASE_FILE)
 	if err != nil {
 		log.Fatalf("could not parse DB file URL: %v", err)
 	}
@@ -59,7 +104,7 @@ func main() {
 }
 
 // collectDrives returns a slice of clients for each enabled drive.
-func collectDrives(cfg config.Cfg) []drive.Drive {
+func collectDrives(cfg *config.Cfg) []drive.Drive {
 	drives := []drive.Drive{}
 	if cfg.Dropbox != nil {
 		dbox := drive.NewDropboxClient(cfg.Dropbox)
