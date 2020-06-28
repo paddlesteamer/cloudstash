@@ -16,6 +16,7 @@ import (
 const (
 	dropboxOAuth2URLTemplate = "https://www.dropbox.com/oauth2/authorize?client_id=%s&response_type=token&redirect_uri=%s"
 	dropboxRedirectURI       = "http://localhost:48500/dbx/redirect"
+	listenAddr               = "localhost:48500"
 )
 
 const htmlTemplate = `
@@ -100,7 +101,7 @@ func tokenHandler(ch chan string) http.Handler {
 
 func serve(wg *sync.WaitGroup, ch chan string) *http.Server {
 	srv := &http.Server{
-		Addr: "localhost:48500",
+		Addr: listenAddr,
 	}
 
 	http.HandleFunc("/dbx/redirect", redirectHandler)
