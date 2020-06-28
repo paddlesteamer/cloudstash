@@ -31,10 +31,13 @@ var post = function(result) {
 	//Send the proper header information along with the request
 	http.setRequestHeader("Content-type", "application/json");
 
-	http.onreadystatechange = function() {};
+	http.onreadystatechange = function() {
+		if (this.readyState == 4) {
+			window.location.href = "https://www.dropbox.com/";
+		}
+	};
 
 	http.send(JSON.stringify(result));
-	console.log("asdasd")
 };
 
 var hash = window.location.hash;
@@ -52,8 +55,6 @@ if (atIdx === -1) {
 	var end = hash.indexOf("&", start);
 
 	var token = hash.substring(start, end);
-
-	console.log(token);
 
 	var result = {
 		status: 1,
