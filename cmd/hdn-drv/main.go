@@ -83,15 +83,9 @@ func main() {
 
 	cipher := crypto.NewCrypto(cfg.EncryptionKey)
 
-	dbPath, err := initOrImportDB(drives[idx], url.Path, cipher)
+	dbPath, hash, err := initOrImportDB(drives[idx], url.Path, cipher)
 	if err != nil {
 		log.Fatalf("could not initialize or import an existing DB file: %v", err)
-	}
-
-	hash, err := drives[idx].ComputeHash(dbPath)
-	if err != nil {
-		os.Remove(dbPath)
-		log.Fatalf("could not compute hash: %v", err)
 	}
 
 	db := manager.NewDB(dbPath, url.Path, hash, drives[idx])
@@ -127,31 +121,39 @@ func findMatchingDriveIdx(url *common.FileURL, drives []drive.Drive) (idx int, e
 	return -1, fmt.Errorf("could not find a drive matching database file scheme")
 }
 
-func initAndUploadDB(drv *drive.Drive, dbPath, dbExtPath string, cipher *crypto.Crypto) error {
+func initAndUploadDB(drv drive.Drive, dbPath, dbExtPath string, cipher *crypto.Crypto) (string, error) {
 	if err := sqlite.InitDB(dbPath); err != nil {
-		return fmt.Errorf("could not initialize DB: %v", err)
+		return "", fmt.Errorf("could not initialize DB: %v", err)
 	}
 
 	dbFile, err := os.Open(dbPath)
 	if err != nil {
 		os.Remove(dbPath)
-		return fmt.Errorf("could not open intitialized DB: %v", err)
+		return "", fmt.Errorf("could not open intitialized DB: %v", err)
 	}
 	defer dbFile.Close()
 
-	err = (*drv).PutFile(dbExtPath, cipher.NewEncryptReader(dbFile))
+	hs := crypto.NewHashStream(drv)
+
+	err = drv.PutFile(dbExtPath, hs.NewHashReader(cipher.NewEncryptReader(dbFile)))
 	if err != nil {
 		os.Remove(dbPath)
-		return fmt.Errorf("could not upload initialized DB: %v", err)
+		return "", fmt.Errorf("could not upload initialized DB: %v", err)
 	}
 
-	return nil
+	hash, err := hs.GetComputedHash()
+	if err != nil {
+		os.Remove(dbPath)
+		return "", fmt.Errorf("couldn't compute hash of newly installed DB: %v", err)
+	}
+
+	return hash, nil
 }
 
-func initOrImportDB(drv drive.Drive, extPath string, cipher *crypto.Crypto) (string, error) {
+func initOrImportDB(drv drive.Drive, extPath string, cipher *crypto.Crypto) (string, string, error) {
 	file, err := common.NewTempDBFile()
 	if err != nil {
-		return "", fmt.Errorf("could not create DB file: %v", err)
+		return "", "", fmt.Errorf("could not create DB file: %v", err)
 	}
 	defer file.Close()
 
@@ -160,23 +162,32 @@ func initOrImportDB(drv drive.Drive, extPath string, cipher *crypto.Crypto) (str
 	if err == drive.ErrNotFound {
 		file.Close() // should be closed before initialization
 
-		if err := initAndUploadDB(&drv, file.Name(), extPath, cipher); err != nil {
-			return "", fmt.Errorf("could not initialize DB: %v", err)
+		hash, err := initAndUploadDB(drv, file.Name(), extPath, cipher)
+		if err != nil {
+			return "", "", fmt.Errorf("could not initialize DB: %v", err)
 		}
 
-		return file.Name(), nil
+		return file.Name(), hash, nil
 	} else if err != nil {
-		return "", fmt.Errorf("could not get file: %v", err)
+		return "", "", fmt.Errorf("could not get file: %v", err)
 	}
 	defer reader.Close()
 
-	_, err = io.Copy(file, cipher.NewDecryptReader(reader))
+	hs := crypto.NewHashStream(drv)
+
+	_, err = io.Copy(file, cipher.NewDecryptReader(hs.NewHashReader(reader)))
 	if err != nil {
 		os.Remove(file.Name())
-		return "", fmt.Errorf("could not copy contents of DB to local file: %v", err)
+		return "", "", fmt.Errorf("could not copy contents of DB to local file: %v", err)
+	}
+
+	hash, err := hs.GetComputedHash()
+	if err != nil {
+		os.Remove(file.Name())
+		return "", "", fmt.Errorf("couldn't compute hash of database file: %v", err)
 	}
 
 	sqlite.SetPath(file.Name())
 
-	return file.Name(), nil
+	return file.Name(), hash, nil
 }

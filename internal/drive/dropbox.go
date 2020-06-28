@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
@@ -85,42 +84,53 @@ func (d *Dropbox) GetFileMetadata(path string) (*Metadata, error) {
 
 // ComputeHash computes content hash value according to
 // https://www.dropbox.com/developers/reference/content-hash
-func (d *Dropbox) ComputeHash(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", fmt.Errorf("could not open dropbox file %s: %v", path, err)
-	}
-	defer f.Close()
-
-	fi, err := f.Stat()
-	if err != nil {
-		return "", fmt.Errorf("could not get dropbox file size of %s: %v", path, err)
-	}
-
-	bytesLeft := fi.Size()
+func (d *Dropbox) ComputeHash(r io.Reader, hchan chan string, echan chan error) {
 	res := []byte{}
-	var cpSize int64 = 4 * 1024 * 1024
 
-	for bytesLeft > 0 {
-		if bytesLeft < 4096 {
-			cpSize = bytesLeft
+	buffer := make([]byte, 4*1024*1024)
+
+	for {
+
+		ntotal := 0
+		brk := false
+
+		for {
+			n, err := r.Read(buffer[ntotal:])
+			if err != nil && err != io.EOF {
+				echan <- fmt.Errorf("couldn't read into hash buffer: %v", err)
+				return
+			}
+
+			ntotal += n
+
+			if err == io.EOF || ntotal == len(buffer) {
+				brk = err == io.EOF
+				break
+			}
+		}
+
+		if brk && ntotal == 0 {
+			rh := sha256.Sum256(res)
+
+			hchan <- fmt.Sprintf("%x", rh)
+
+			return
 		}
 
 		h := sha256.New()
-		_, err := io.CopyN(h, f, cpSize)
-		if err != nil && err != io.EOF {
-			return "", fmt.Errorf("could not copy btyes from  %s: %v", path, err)
+		if _, err := h.Write(buffer[:ntotal]); err != nil {
+			echan <- fmt.Errorf("couldn't write to hash from buffer: %v", err)
 		}
 
 		res = append(res, h.Sum(nil)...)
-		bytesLeft -= cpSize
 
-		_, err = f.Seek(cpSize, 1)
-		if err != nil {
-			return "", fmt.Errorf("could not seek file: %v", err)
+		if brk {
+			rh := sha256.Sum256(res)
+
+			hchan <- fmt.Sprintf("%x", rh)
+
+			return
 		}
 	}
 
-	rh := sha256.Sum256(res)
-	return fmt.Sprintf("%x", rh), nil
 }
