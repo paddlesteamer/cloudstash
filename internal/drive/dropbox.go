@@ -17,10 +17,6 @@ type Dropbox struct {
 	client files.Client
 }
 
-func (d *Dropbox) GetProviderName() string {
-	return "dropbox"
-}
-
 // NewDropboxClient creates a new Dropbox client.
 func NewDropboxClient(conf *config.DropboxCredentials) *Dropbox {
 	dbxConfig := dropbox.Config{
@@ -29,6 +25,10 @@ func NewDropboxClient(conf *config.DropboxCredentials) *Dropbox {
 	}
 
 	return &Dropbox{files.New(dbxConfig)}
+}
+
+func (d *Dropbox) GetProviderName() string {
+	return "dropbox"
 }
 
 // @todo: add descriptive comment
