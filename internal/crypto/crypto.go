@@ -25,7 +25,7 @@ type Crypto struct {
 }
 
 func NewCrypto(key string) *Crypto {
-	derived := pbkdf2.Key([]byte(key), salt, 4096, aes.BlockSize, sha256.New)
+	derived := pbkdf2.Key([]byte(key), salt, 1000000, 32, sha256.New)
 	return &Crypto{derived}
 }
 
