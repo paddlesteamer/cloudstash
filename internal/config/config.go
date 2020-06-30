@@ -20,7 +20,7 @@ type Cfg struct {
 
 const (
 	cfgFile   string = "config.json"
-	cfgFolder string = "hdn-drv"
+	cfgFolder string = "cloudstash"
 )
 
 func DoesConfigExist(dir string) bool {

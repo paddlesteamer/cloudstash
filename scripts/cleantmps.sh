@@ -1,4 +1,4 @@
 #!/bin/bash
 
-rm -f /tmp/hdn-drv-db-*
-rm -f /tmp/hdn-drv-cached-*
+rm -f /tmp/cloudstash-db-*
+rm -f /tmp/cloudstash-cached-*

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/paddlesteamer/hdn-drv/internal/drive"
+	"github.com/paddlesteamer/cloudstash/internal/drive"
 )
 
 type HashStream struct {

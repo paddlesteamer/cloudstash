@@ -5,26 +5,26 @@ import (
 	"io"
 	"os"
 
-	"github.com/paddlesteamer/hdn-drv/internal/common"
-	"github.com/paddlesteamer/hdn-drv/internal/manager"
+	"github.com/paddlesteamer/cloudstash/internal/common"
+	"github.com/paddlesteamer/cloudstash/internal/manager"
 	"github.com/vgough/go-fuse-c/fuse"
 )
 
-type HdnDrvFs struct {
+type CloudStashFs struct {
 	manager *manager.Manager
 
 	fuse.DefaultFileSystem
 }
 
-func NewHdnDrvFs(m *manager.Manager) *HdnDrvFs {
-	return &HdnDrvFs{manager: m}
+func NewCloudStashFs(m *manager.Manager) *CloudStashFs {
+	return &CloudStashFs{manager: m}
 }
 
-func (r *HdnDrvFs) StatFs(ino int64) (*fuse.StatVFS, fuse.Status) {
+func (r *CloudStashFs) StatFs(ino int64) (*fuse.StatVFS, fuse.Status) {
 	return nil, fuse.ENOSYS
 }
 
-func (r *HdnDrvFs) GetAttr(ino int64, info *fuse.FileInfo) (*fuse.InoAttr, fuse.Status) {
+func (r *CloudStashFs) GetAttr(ino int64, info *fuse.FileInfo) (*fuse.InoAttr, fuse.Status) {
 	fmt.Printf("getattr ino: %d\n", ino)
 
 	md, err := r.manager.GetMetadata(ino)
@@ -43,7 +43,7 @@ func (r *HdnDrvFs) GetAttr(ino int64, info *fuse.FileInfo) (*fuse.InoAttr, fuse.
 	return inode, fuse.OK
 }
 
-func (r *HdnDrvFs) SetAttr(ino int64, attr *fuse.InoAttr, mask fuse.SetAttrMask, fi *fuse.FileInfo) (*fuse.InoAttr, fuse.Status) {
+func (r *CloudStashFs) SetAttr(ino int64, attr *fuse.InoAttr, mask fuse.SetAttrMask, fi *fuse.FileInfo) (*fuse.InoAttr, fuse.Status) {
 	fmt.Printf("setattr ino: %d\n", ino)
 
 	md, err := r.manager.GetMetadata(ino)
@@ -71,7 +71,7 @@ func (r *HdnDrvFs) SetAttr(ino int64, attr *fuse.InoAttr, mask fuse.SetAttrMask,
 	return inode, fuse.OK
 }
 
-func (r *HdnDrvFs) Lookup(parent int64, name string) (*fuse.Entry, fuse.Status) {
+func (r *CloudStashFs) Lookup(parent int64, name string) (*fuse.Entry, fuse.Status) {
 	fmt.Printf("lookup parent: %d, name: %s\n", parent, name)
 
 	parentmd, err := r.manager.GetMetadata(parent)
@@ -112,7 +112,7 @@ func (r *HdnDrvFs) Lookup(parent int64, name string) (*fuse.Entry, fuse.Status) 
 	return entry, fuse.OK
 }
 
-func (r *HdnDrvFs) ReadDir(ino int64, fi *fuse.FileInfo, off int64, size int, w fuse.DirEntryWriter) fuse.Status {
+func (r *CloudStashFs) ReadDir(ino int64, fi *fuse.FileInfo, off int64, size int, w fuse.DirEntryWriter) fuse.Status {
 	fmt.Printf("readdir ino %d\n", ino)
 
 	dirmd, err := r.manager.GetMetadata(ino)
@@ -176,7 +176,7 @@ func (r *HdnDrvFs) ReadDir(ino int64, fi *fuse.FileInfo, off int64, size int, w 
 	return fuse.OK
 }
 
-func (r *HdnDrvFs) Rmdir(parent int64, name string) fuse.Status {
+func (r *CloudStashFs) Rmdir(parent int64, name string) fuse.Status {
 	fmt.Printf("rmdir ino: %d name: %s\n", parent, name)
 
 	parentmd, err := r.manager.GetMetadata(parent)
@@ -210,7 +210,7 @@ func (r *HdnDrvFs) Rmdir(parent int64, name string) fuse.Status {
 	return fuse.OK
 }
 
-func (r *HdnDrvFs) Create(parent int64, name string, mode int, fi *fuse.FileInfo) (*fuse.Entry, fuse.Status) {
+func (r *CloudStashFs) Create(parent int64, name string, mode int, fi *fuse.FileInfo) (*fuse.Entry, fuse.Status) {
 	fmt.Printf("create parent: %d name: %s\n", parent, name)
 
 	md, err := r.manager.CreateFile(parent, name, mode)
@@ -232,7 +232,7 @@ func (r *HdnDrvFs) Create(parent int64, name string, mode int, fi *fuse.FileInfo
 	return entry, fuse.OK
 }
 
-func (r *HdnDrvFs) Open(ino int64, fi *fuse.FileInfo) fuse.Status {
+func (r *CloudStashFs) Open(ino int64, fi *fuse.FileInfo) fuse.Status {
 	fmt.Printf("open ino: %d\n", ino)
 
 	md, err := r.manager.GetMetadata(ino)
@@ -253,7 +253,7 @@ func (r *HdnDrvFs) Open(ino int64, fi *fuse.FileInfo) fuse.Status {
 	return fuse.OK
 }
 
-func (r *HdnDrvFs) OpenDir(ino int64, fi *fuse.FileInfo) fuse.Status {
+func (r *CloudStashFs) OpenDir(ino int64, fi *fuse.FileInfo) fuse.Status {
 	fmt.Printf("open dir ino: %d\n", ino)
 
 	md, err := r.manager.GetMetadata(ino)
@@ -274,7 +274,7 @@ func (r *HdnDrvFs) OpenDir(ino int64, fi *fuse.FileInfo) fuse.Status {
 	return fuse.OK
 }
 
-func (r *HdnDrvFs) Write(p []byte, ino int64, off int64, fi *fuse.FileInfo) (int, fuse.Status) {
+func (r *CloudStashFs) Write(p []byte, ino int64, off int64, fi *fuse.FileInfo) (int, fuse.Status) {
 	fmt.Printf("write ino: %d\n", ino)
 
 	md, err := r.manager.GetMetadata(ino)
@@ -322,7 +322,7 @@ func (r *HdnDrvFs) Write(p []byte, ino int64, off int64, fi *fuse.FileInfo) (int
 	return n, fuse.OK
 }
 
-func (r *HdnDrvFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]byte, fuse.Status) {
+func (r *CloudStashFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]byte, fuse.Status) {
 	fmt.Printf("read ino: %d\n", ino)
 
 	md, err := r.manager.GetMetadata(ino)
@@ -373,7 +373,7 @@ func (r *HdnDrvFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]
 	return data, fuse.OK
 }
 
-func (r *HdnDrvFs) Mkdir(parent int64, name string, mode int) (*fuse.Entry, fuse.Status) {
+func (r *CloudStashFs) Mkdir(parent int64, name string, mode int) (*fuse.Entry, fuse.Status) {
 	fmt.Printf("mkdir parent: %d name: %s\n", parent, name)
 
 	md, err := r.manager.AddDirectory(parent, name, mode)
@@ -394,7 +394,7 @@ func (r *HdnDrvFs) Mkdir(parent int64, name string, mode int) (*fuse.Entry, fuse
 	return entry, fuse.OK
 }
 
-func (r *HdnDrvFs) Unlink(parent int64, name string) fuse.Status {
+func (r *CloudStashFs) Unlink(parent int64, name string) fuse.Status {
 	fmt.Printf("unlink parent: %d name: %s\n", parent, name)
 
 	parentmd, err := r.manager.GetMetadata(parent)
@@ -433,7 +433,7 @@ func (r *HdnDrvFs) Unlink(parent int64, name string) fuse.Status {
 	return fuse.OK
 }
 
-func (r *HdnDrvFs) Rename(oparent int64, oname string, tparent int64, tname string) fuse.Status {
+func (r *CloudStashFs) Rename(oparent int64, oname string, tparent int64, tname string) fuse.Status {
 	fmt.Printf("rename p: %d name: %s\n", oparent, oname)
 
 	oparentmd, err := r.manager.GetMetadata(oparent)

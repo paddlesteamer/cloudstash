@@ -9,7 +9,7 @@ import (
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files"
 
-	"github.com/paddlesteamer/hdn-drv/internal/config"
+	"github.com/paddlesteamer/cloudstash/internal/config"
 )
 
 type Dropbox struct {

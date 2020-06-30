@@ -8,6 +8,6 @@ const (
 )
 
 const (
-	DROPBOX_APP_KEY = "tzpv39e8hkg06xi"
-	DATABASE_FILE   = "dropbox://hdn-drv.sqlite3" // @TODO: to be removed later
+	DROPBOX_APP_KEY = "l4v6ipcr1rlwu1x"
+	DATABASE_FILE   = "dropbox://cloudstash.sqlite3" // @TODO: to be removed later
 )
