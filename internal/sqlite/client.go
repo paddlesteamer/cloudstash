@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/paddlesteamer/hdn-drv/internal/common"
+	"github.com/paddlesteamer/cloudstash/internal/common"
 )
 
 type Client struct {

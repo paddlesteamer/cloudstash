@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const mountFolderName string = "hdn-drv"
+const mountFolderName string = "cloudstash"
 
 func GetMountPoint(dir string) string {
 	if dir == "" {

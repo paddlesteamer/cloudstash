@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/paddlesteamer/hdn-drv/internal/common"
-	"github.com/paddlesteamer/hdn-drv/internal/crypto"
-	"github.com/paddlesteamer/hdn-drv/internal/drive"
-	"github.com/paddlesteamer/hdn-drv/internal/sqlite"
+	"github.com/paddlesteamer/cloudstash/internal/common"
+	"github.com/paddlesteamer/cloudstash/internal/crypto"
+	"github.com/paddlesteamer/cloudstash/internal/drive"
+	"github.com/paddlesteamer/cloudstash/internal/sqlite"
 	"github.com/patrickmn/go-cache"
 )
 

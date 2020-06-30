@@ -4,7 +4,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/paddlesteamer/hdn-drv/internal/drive"
+	"github.com/paddlesteamer/cloudstash/internal/drive"
 )
 
 type database struct {

@@ -1,4 +1,4 @@
-name: hdn-drv
+name: cloudstash
 on:
   push:
 jobs:

@@ -1,4 +1,4 @@
-module github.com/paddlesteamer/hdn-drv
+module github.com/paddlesteamer/cloudstash
 
 go 1.14
 

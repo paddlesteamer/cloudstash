@@ -9,12 +9,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/paddlesteamer/hdn-drv/internal/drive"
+	"github.com/paddlesteamer/cloudstash/internal/drive"
 )
 
 const (
-	cacheFilePrefix = "hdn-drv-cached-"
-	dbFilePrefix    = "hdn-drv-db-"
+	cacheFilePrefix = "cloudstash-cached-"
+	dbFilePrefix    = "cloudstash-db-"
 )
 
 type FileURL struct {
