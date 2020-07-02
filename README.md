@@ -16,6 +16,15 @@ Then compile with `go build`
 $ go build ./cmd/cloudstash
 ```
 
+### Important but Temporary Notice
+You need to clone `github.com/paddlesteamer/go-fuse-c` as `github.com/vgough/go-fuse-c` because `vgough/go-fuse-c` doesn't implement an unmount method. There is a [PR]("https://github.com/vgough/go-fuse-c/pull/2") open right now. This issue will be resolved depending on if PR will be merged or not.  
+
+```bash
+cd "$(go env GOPATH)/pkg/mod/github.com/vgough"
+rm -rf go-fuse-c@v0.7.1
+git clone github.com/paddlesteamer/go-fuse-c go-fuse-c@v0.7.1
+```
+
 ## Usage
 Simply run the binary:
 
