@@ -275,7 +275,7 @@ func (r *CloudStashFs) OpenDir(ino int64, fi *fuse.FileInfo) fuse.Status {
 }
 
 func (r *CloudStashFs) Write(p []byte, ino int64, off int64, fi *fuse.FileInfo) (int, fuse.Status) {
-	fmt.Printf("write ino: %d\n", ino)
+	fmt.Printf("write ino: %d len: %d off: %d\n", ino, len(p), off)
 
 	md, err := r.manager.GetMetadata(ino)
 	if err != nil {
@@ -310,16 +310,20 @@ func (r *CloudStashFs) Write(p []byte, ino int64, off int64, fi *fuse.FileInfo) 
 		return n, fuse.EIO
 	}
 
-	err = r.manager.UpdateMetadataFromCache(ino)
+	return n, fuse.OK
+}
+
+func (r *CloudStashFs) Flush(ino int64, fi *fuse.FileInfo) fuse.Status {
+	fmt.Printf("flush ino: %d\n", ino)
+
+	err := r.manager.UpdateMetadataFromCache(ino)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "file is written but couldn't update metadata in db: %v", err)
 
-		return 0, fuse.EIO
+		return fuse.EIO
 	}
 
-	r.manager.NotifyChangeInFile(writer.Name(), md.URL)
-
-	return n, fuse.OK
+	return fuse.OK
 }
 
 func (r *CloudStashFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]byte, fuse.Status) {
