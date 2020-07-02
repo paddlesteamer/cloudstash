@@ -17,7 +17,7 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/fs"
 	"github.com/paddlesteamer/cloudstash/internal/manager"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
-	"github.com/vgough/go-fuse-c/fuse"
+	"github.com/paddlesteamer/go-fuse-c/fuse"
 	"golang.org/x/crypto/ssh/terminal"
 )
 

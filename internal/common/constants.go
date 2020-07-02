@@ -1,6 +1,6 @@
 package common
 
-import "github.com/vgough/go-fuse-c/fuse"
+import "github.com/paddlesteamer/go-fuse-c/fuse"
 
 const (
 	DRV_FILE   = fuse.S_IFREG

@@ -17,6 +17,8 @@ github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWb
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/paddlesteamer/go-cache v2.1.1-0.20200702080430-6c67620aac7b+incompatible h1:UqoNw14mjbw+L4toSls/yckVfxllNP5khgzNlaKjrFM=
 github.com/paddlesteamer/go-cache v2.1.1-0.20200702080430-6c67620aac7b+incompatible/go.mod h1:fyaSBWk3R0sq+6Xghk6UeYARK6jfDP45tkC+eznikvo=
+github.com/paddlesteamer/go-fuse-c v0.7.2 h1:t03etmvN8Lmj5OlGpZuHTRqqxXaKIGaorobcZLWsRCg=
+github.com/paddlesteamer/go-fuse-c v0.7.2/go.mod h1:pSjj58JtUQ+6TTqKJRm9+ahtARtKeRGih1MIW/XwDvk=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/objx v0.1.0 h1:4G4v2dO3VZwixGIRoQ5Lfboy6nUhCyYzaqnIAPPhYs4=
@@ -24,8 +26,6 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.6.1 h1:hDPOHmpOpP40lSULcqw7IrRb/u7w6RpDC9399XyoNd0=
 github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
-github.com/vgough/go-fuse-c v0.7.1 h1:AqTmNP7LTMeXjZ/yrmfQtBYe8n/ytYu+2VJw2OYdDY4=
-github.com/vgough/go-fuse-c v0.7.1/go.mod h1:3Q27CHxOF9lO3AMdMN0/Whyy2nCJfc42pD+qrwp/tAQ=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2 h1:VklqNMn3ovrHsnt90PveolxSbWFaJdECFbxSq0Mqo2M=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/net v0.0.0-20180724234803-3673e40ba225/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=

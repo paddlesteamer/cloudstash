@@ -7,7 +7,7 @@ import (
 
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/manager"
-	"github.com/vgough/go-fuse-c/fuse"
+	"github.com/paddlesteamer/go-fuse-c/fuse"
 )
 
 type CloudStashFs struct {
