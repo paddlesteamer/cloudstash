@@ -43,6 +43,18 @@ func NewManager(drives []drive.Drive, db *database, cipher *crypto.Crypto, key s
 	return m
 }
 
+func (m *Manager) Close() {
+	items := m.cache.Items()
+
+	m.cache.Flush()
+
+	for _, item := range items {
+		path := item.Object.(string)
+
+		os.Remove(path)
+	}
+}
+
 func (m *Manager) NotifyChangeInFile(cachePath string, extPath string) {
 	m.tracker.Add(cachePath, extPath, cacheForever)
 }

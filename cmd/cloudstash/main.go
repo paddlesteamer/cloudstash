@@ -93,6 +93,7 @@ func main() {
 	defer db.Close()
 
 	m := manager.NewManager(drives, db, cipher, cfg.EncryptionKey)
+	defer m.Close()
 
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
