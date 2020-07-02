@@ -1,7 +1,6 @@
 package crypto
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -71,8 +70,7 @@ func (c *Crypto) encrypt(r io.Reader, w io.WriteCloser) {
 			break
 		}
 
-		padded := pad(chunk[:n], block.BlockSize())
-		mac := c.computeHMAC(padded)
+		mac := c.computeHMAC(chunk[:n])
 
 		_, err = w.Write(mac)
 		if err != nil {
@@ -81,7 +79,7 @@ func (c *Crypto) encrypt(r io.Reader, w io.WriteCloser) {
 			return
 		}
 
-		ciphertext := make([]byte, block.BlockSize()+len(padded))
+		ciphertext := make([]byte, block.BlockSize()+n)
 		iv := ciphertext[:block.BlockSize()]
 
 		_, err = io.ReadFull(rand.Reader, iv)
@@ -91,8 +89,8 @@ func (c *Crypto) encrypt(r io.Reader, w io.WriteCloser) {
 			return
 		}
 
-		enc := cipher.NewCBCEncrypter(block, iv)
-		enc.CryptBlocks(ciphertext[block.BlockSize():], padded)
+		enc := cipher.NewCTR(block, iv)
+		enc.XORKeyStream(ciphertext[block.BlockSize():], chunk[:n])
 
 		_, err = w.Write(ciphertext)
 		if err != nil {
@@ -146,22 +144,15 @@ func (c *Crypto) decrypt(r io.Reader, w io.WriteCloser) {
 
 		ciphertext := chunk[32+block.BlockSize() : ntotal]
 
-		if (len(ciphertext) % block.BlockSize()) != 0 {
-			fmt.Fprintf(os.Stderr, "malformed file: blocksize error(ciphertext length: %d)\n", len(ciphertext))
-			return
-		}
-
-		dec := cipher.NewCBCDecrypter(block, iv)
-		dec.CryptBlocks(ciphertext, ciphertext)
+		dec := cipher.NewCTR(block, iv)
+		dec.XORKeyStream(ciphertext, ciphertext)
 
 		if !hmac.Equal(mac, c.computeHMAC(ciphertext)) {
 			fmt.Fprintf(os.Stderr, "file might be altered!\n")
 			return
 		}
 
-		unpadded := unpad(ciphertext, block.BlockSize())
-
-		_, err = w.Write(unpadded)
+		_, err = w.Write(ciphertext)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "couldn't write decrypted data to buffer: %v\n", err)
 			return
@@ -177,29 +168,4 @@ func (c *Crypto) computeHMAC(chunk []byte) []byte {
 	mac := hmac.New(sha256.New, c.key)
 	mac.Write(chunk)
 	return mac.Sum(nil)
-}
-
-func pad(chunk []byte, blockSize int) []byte {
-	padlength := blockSize - (len(chunk) % blockSize)
-	if padlength == blockSize {
-		return chunk
-	}
-
-	padtext := bytes.Repeat([]byte{byte(padlength)}, padlength)
-	return append(chunk, padtext...)
-}
-
-func unpad(chunk []byte, blockSize int) []byte {
-	padlength := int(chunk[len(chunk)-1])
-	if padlength >= 16 {
-		return chunk
-	}
-
-	for i := len(chunk) - 1; i > len(chunk)-padlength; i-- { // good ol' for loop
-		if chunk[i] != byte(padlength) {
-			return chunk
-		}
-	}
-
-	return chunk[:len(chunk)-padlength]
 }
