@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"syscall"
 
 	"github.com/paddlesteamer/cloudstash/internal/auth"
@@ -16,7 +17,7 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/fs"
 	"github.com/paddlesteamer/cloudstash/internal/manager"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
-	"github.com/vgough/go-fuse-c/fuse"
+	"github.com/paddlesteamer/go-fuse-c/fuse"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -92,6 +93,11 @@ func main() {
 	defer db.Close()
 
 	m := manager.NewManager(drives, db, cipher, cfg.EncryptionKey)
+
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	go handleSignal(signalCh, cfg.MountPoint)
 
 	fs := fs.NewCloudStashFs(m)
 	fuse.MountAndRun([]string{os.Args[0], cfg.MountPoint}, fs)
@@ -190,4 +196,10 @@ func initOrImportDB(drv drive.Drive, extPath string, cipher *crypto.Crypto) (str
 	sqlite.SetPath(file.Name())
 
 	return file.Name(), hash, nil
+}
+
+func handleSignal(ch chan os.Signal, mountpoint string) {
+	_ = <-ch
+
+	fuse.UMount(mountpoint)
 }
