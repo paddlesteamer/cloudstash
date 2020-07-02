@@ -11,7 +11,7 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
 	"github.com/paddlesteamer/cloudstash/internal/drive"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
-	"github.com/patrickmn/go-cache"
+	"github.com/paddlesteamer/go-cache"
 )
 
 type Manager struct {
@@ -99,7 +99,7 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	p, found := m.cache.Get(strconv.FormatInt(inode, 10))
+	p, found := m.cache.GetWithExpirationUpdate(strconv.FormatInt(inode, 10), cacheExpiration)
 	if !found {
 		return fmt.Errorf("the file hasn't beed cached")
 	}
@@ -254,7 +254,7 @@ func (m *Manager) RemoveFile(md *common.Metadata) error {
 func (m *Manager) OpenFile(md *common.Metadata, flag int) (*os.File, error) {
 	var path string
 
-	p, found := m.cache.Get(strconv.FormatInt(md.Inode, 10))
+	p, found := m.cache.GetWithExpirationUpdate(strconv.FormatInt(md.Inode, 10), cacheExpiration)
 	if !found {
 		p, err := m.downloadFile(md)
 		if err != nil {
@@ -265,7 +265,6 @@ func (m *Manager) OpenFile(md *common.Metadata, flag int) (*os.File, error) {
 	} else {
 		path = p.(string)
 	}
-	m.cache.Set(strconv.FormatInt(md.Inode, 10), path, cacheExpiration) // update expiration
 
 	file, err := os.OpenFile(path, flag, os.ModeAppend)
 	if err != nil {

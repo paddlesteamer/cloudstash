@@ -8,7 +8,7 @@ require (
 	github.com/icza/gox v0.0.0-20200615201046-5fb07725cc03
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
-	github.com/patrickmn/go-cache v2.1.0+incompatible
+	github.com/paddlesteamer/go-cache v2.1.1-0.20200702080430-6c67620aac7b+incompatible
 	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/vgough/go-fuse-c v0.7.1
 	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
