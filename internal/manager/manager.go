@@ -136,6 +136,7 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 	}
 
 	m.NotifyChangeInDatabase()
+	m.NotifyChangeInFile(path, md.URL)
 
 	return nil
 }
