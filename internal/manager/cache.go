@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/patrickmn/go-cache"
+	"github.com/paddlesteamer/go-cache"
 )
 
 const (
