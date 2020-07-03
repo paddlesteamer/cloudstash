@@ -9,6 +9,23 @@ import (
 )
 
 const (
+	fileDownloading = iota
+	fileAvailable   = iota
+)
+
+type cacheEntry struct {
+	path   string
+	status int
+}
+
+func newCacheEntry(path string, status int) cacheEntry {
+	return cacheEntry{
+		path:   path,
+		status: status,
+	}
+}
+
+const (
 	cacheExpiration = 30 * time.Minute
 	cleanupInterval = 5 * time.Minute
 	cacheForever    = 0

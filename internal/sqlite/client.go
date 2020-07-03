@@ -23,6 +23,7 @@ var (
 		"mode"   INTEGER NOT NULL,
 		"parent" INTEGER NOT NULL,
 		"type"   INTEGER NOT NULL,
+		"hash"   TEXT NOT NULL DEFAULT "",
 		UNIQUE("name", "parent"),
 		FOREIGN KEY("parent") REFERENCES folders("id")
 	);`,
@@ -217,15 +218,15 @@ func (c *Client) AddDirectory(parent int64, name string, mode int) (*common.Meta
 	return md, nil
 }
 
-func (c *Client) CreateFile(parent int64, name string, mode int, url string) (*common.Metadata, error) {
-	query, err := c.db.Prepare("INSERT INTO files(name, url, size, mode, parent, type) VALUES(?, ?, ?, ?, ?, ?)")
+func (c *Client) CreateFile(parent int64, name string, mode int, url string, hash string) (*common.Metadata, error) {
+	query, err := c.db.Prepare("INSERT INTO files(name, url, size, mode, parent, type, hash) VALUES(?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
 	}
 
-	_, err = query.Exec(name, url, 0, mode, parent, common.DRV_FILE)
+	_, err = query.Exec(name, url, 0, mode, parent, common.DRV_FILE, hash)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't insert directory: %v", err)
+		return nil, fmt.Errorf("couldn't insert file: %v", err)
 	}
 
 	query, err = c.db.Prepare("SELECT * FROM files WHERE name=? and parent=?")
@@ -300,7 +301,7 @@ func (c *Client) fillNLink(md *common.Metadata) error {
 
 func (c *Client) parseRow(row *sql.Rows) (*common.Metadata, error) {
 	md := &common.Metadata{}
-	err := row.Scan(&md.Inode, &md.Name, &md.URL, &md.Size, &md.Mode, &md.Parent, &md.Type)
+	err := row.Scan(&md.Inode, &md.Name, &md.URL, &md.Size, &md.Mode, &md.Parent, &md.Type, &md.Hash)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't parse row: %v", err)
 	}

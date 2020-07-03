@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"crypto/md5"
 	"fmt"
 	"io"
 
@@ -81,4 +82,14 @@ func (hs *HashStream) computeHash(r io.Reader, w io.WriteCloser) {
 	case err := <-echan:
 		hs.err = fmt.Errorf("error while hashing: %v", err)
 	}
+}
+
+func MD5Checksum(file io.Reader) (string, error) {
+	h := md5.New()
+
+	if _, err := io.Copy(h, file); err != nil {
+		return "", fmt.Errorf("couldn't read from file: %v", err)
+	}
+
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }

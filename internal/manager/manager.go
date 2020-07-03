@@ -49,9 +49,11 @@ func (m *Manager) Close() {
 	m.cache.Flush()
 
 	for _, item := range items {
-		path := item.Object.(string)
+		path := item.Object.(cacheEntry).path
 
-		os.Remove(path)
+		if path != "" {
+			os.Remove(path)
+		}
 	}
 }
 
@@ -111,12 +113,12 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	p, found := m.cache.GetWithExpirationUpdate(strconv.FormatInt(inode, 10), cacheExpiration)
+	e, found := m.cache.GetWithExpirationUpdate(strconv.FormatInt(inode, 10), cacheExpiration)
 	if !found {
 		return fmt.Errorf("the file hasn't beed cached")
 	}
 
-	path := p.(string)
+	path := e.(cacheEntry).path
 
 	file, err := os.Open(path)
 	if err != nil {
@@ -140,15 +142,22 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 		return fmt.Errorf("couldn't get file: %v", err)
 	}
 
-	md.Size = fi.Size()
-
-	err = db.Update(md)
+	checksum, err := crypto.MD5Checksum(file)
 	if err != nil {
-		return fmt.Errorf("couldn't update file metadata: %v", err)
+		return fmt.Errorf("couldn't compute md5 checksum: %v", err)
 	}
 
-	m.NotifyChangeInDatabase()
-	m.NotifyChangeInFile(path, md.URL)
+	if md.Hash != checksum {
+		md.Size = fi.Size()
+		md.Hash = checksum
+		err = db.Update(md)
+		if err != nil {
+			return fmt.Errorf("couldn't update file metadata: %v", err)
+		}
+
+		m.NotifyChangeInDatabase()
+		m.NotifyChangeInFile(path, md.URL)
+	}
 
 	return nil
 }
@@ -267,16 +276,30 @@ func (m *Manager) RemoveFile(md *common.Metadata) error {
 func (m *Manager) OpenFile(md *common.Metadata, flag int) (*os.File, error) {
 	var path string
 
-	p, found := m.cache.GetWithExpirationUpdate(strconv.FormatInt(md.Inode, 10), cacheExpiration)
+	e, found := m.cache.GetWithExpirationUpdate(strconv.FormatInt(md.Inode, 10), cacheExpiration)
 	if !found {
+		m.cache.Set(strconv.FormatInt(md.Inode, 10), newCacheEntry("", fileDownloading), cacheExpiration)
+
 		p, err := m.downloadFile(md)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't get file from storage %s: %v", md.Name, err)
 		}
 
 		path = p
+
+		m.cache.Set(strconv.FormatInt(md.Inode, 10), newCacheEntry(path, fileAvailable), cacheExpiration)
 	} else {
-		path = p.(string)
+		for {
+			entry := e.(cacheEntry)
+			if entry.status == fileAvailable {
+				break
+			}
+
+			time.Sleep(time.Microsecond * 10)
+			e, _ = m.cache.Get(strconv.FormatInt(md.Inode, 10))
+		}
+
+		path = e.(cacheEntry).path
 	}
 
 	file, err := os.OpenFile(path, flag, os.ModeAppend)
@@ -317,21 +340,25 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metad
 
 	u := common.GetURL(m.selectDrive(), common.ObfuscateFileName(name))
 
-	md, err := db.CreateFile(parent, name, mode, u)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't create file in database: %v", err)
-	}
-
 	tmpfile, err := common.NewTempCacheFile()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create cached file: %v", err)
 	}
-	tmpfile.Close()
+	defer tmpfile.Close()
 
-	m.cache.Set(strconv.FormatInt(md.Inode, 10), tmpfile.Name(), cacheExpiration)
+	checksum, err := crypto.MD5Checksum(tmpfile)
+	if err != nil {
+		tmpfile.Close()
+		os.Remove(tmpfile.Name())
+		return nil, fmt.Errorf("couldn't compute md5 checksum of newly created file: %v", err)
+	}
 
-	m.NotifyChangeInDatabase()
-	m.NotifyChangeInFile(tmpfile.Name(), md.URL)
+	md, err := db.CreateFile(parent, name, mode, u, checksum)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create file in database: %v", err)
+	}
+
+	m.cache.Set(strconv.FormatInt(md.Inode, 10), newCacheEntry(tmpfile.Name(), fileAvailable), cacheExpiration)
 
 	return md, nil
 }

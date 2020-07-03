@@ -327,7 +327,7 @@ func (r *CloudStashFs) Flush(ino int64, fi *fuse.FileInfo) fuse.Status {
 }
 
 func (r *CloudStashFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo) ([]byte, fuse.Status) {
-	fmt.Printf("read ino: %d\n", ino)
+	fmt.Printf("read ino: %d size: %d off: %d\n", ino, size, off)
 
 	md, err := r.manager.GetMetadata(ino)
 	if err != nil {
