@@ -9,4 +9,5 @@ type Metadata struct {
 	Type   int
 	Parent int64
 	NLink  int
+	Hash   string
 }
