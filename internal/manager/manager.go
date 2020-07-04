@@ -23,11 +23,6 @@ type Manager struct {
 	cipher  *crypto.Crypto
 }
 
-const (
-	checkInterval   time.Duration = 60 * time.Second
-	processInterval time.Duration = 5 * time.Second
-)
-
 func NewManager(drives []drive.Drive, db *database, cipher *crypto.Crypto, key string) *Manager {
 	m := &Manager{
 		drives:  drives,
@@ -38,14 +33,16 @@ func NewManager(drives []drive.Drive, db *database, cipher *crypto.Crypto, key s
 		cipher:  cipher,
 	}
 
-	go m.watchRemoteChanges()
-	go m.processLocalChanges()
+	go watchRemoteChanges(m)
+	go processLocalChanges(m)
+
 	return m
 }
 
 func (m *Manager) Close() {
-	items := m.cache.Items()
+	processChanges(m)
 
+	items := m.cache.Items()
 	m.cache.Flush()
 
 	for _, item := range items {
@@ -361,109 +358,6 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metad
 	m.cache.Set(strconv.FormatInt(md.Inode, 10), newCacheEntry(tmpfile.Name(), fileAvailable), cacheExpiration)
 
 	return md, nil
-}
-
-func (m *Manager) watchRemoteChanges() {
-	for {
-		time.Sleep(checkInterval)
-		m.checkChanges()
-	}
-}
-
-func (m *Manager) checkChanges() {
-	mdata, err := m.db.extDrive.GetFileMetadata(m.db.extPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return
-	}
-
-	m.db.wLock()
-	defer m.db.wUnlock()
-
-	if mdata.Hash == m.db.hash {
-		return
-	}
-
-	_, reader, err := m.db.extDrive.GetFile(m.db.extPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't get updated db file: %v\n", err)
-
-		return
-	}
-	defer reader.Close()
-
-	file, err := os.Open(m.db.path)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't open db: %v\n", err)
-
-		return
-	}
-	defer file.Close()
-
-	_, err = io.Copy(file, m.cipher.NewDecryptReader(reader))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't copy contents of updated db file to local file: %v\n", err)
-
-		return
-	}
-}
-
-func (m *Manager) processLocalChanges() {
-	for {
-		time.Sleep(processInterval)
-		m.processChanges()
-	}
-}
-
-func (m *Manager) processChanges() {
-	items := m.tracker.Items()
-	m.tracker.Flush()
-	m.db.rLock()
-	defer m.db.rUnlock()
-
-	for local, it := range items {
-		url := it.Object.(string)
-
-		u, err := common.ParseURL(url)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't parse url %s. skipping: %v\n", url, err)
-			continue
-		}
-
-		drv, err := m.getDriveClient(u.Scheme)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't find drive client of %s: %v\n", u.Scheme, err)
-			continue
-		}
-
-		file, err := os.Open(local)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't open file %s: %v\n", local, err)
-			continue
-		}
-		defer file.Close()
-
-		hs := crypto.NewHashStream(drv)
-
-		err = drv.PutFile(u.Path, hs.NewHashReader(m.cipher.NewEncryptReader(file)))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't upload file: %v\n", err)
-			return
-		}
-
-		hash, err := hs.GetComputedHash()
-		if err != nil {
-			// just log the error and continue
-			fmt.Fprintf(os.Stderr, "couldn't compute hash of file: %v\n", err)
-		}
-
-		fmt.Println(hash)
-
-		// if this file is database file
-		if local == m.db.path {
-			m.db.hash = hash
-		}
-	}
 }
 
 func (m *Manager) getDriveClient(scheme string) (drive.Drive, error) {
