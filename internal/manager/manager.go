@@ -42,8 +42,7 @@ func NewManager(drives []drive.Drive, db *database, cipher *crypto.Crypto, key s
 func (m *Manager) Close() {
 	processChanges(m)
 
-	items := m.cache.Items()
-	m.cache.Flush()
+	items := m.cache.Flush()
 
 	for _, item := range items {
 		path := item.Object.(cacheEntry).path
