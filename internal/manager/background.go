@@ -68,8 +68,7 @@ func processLocalChanges(m *Manager) {
 }
 
 func processChanges(m *Manager) {
-	items := m.tracker.Items()
-	m.tracker.Flush()
+	items := m.tracker.Flush()
 
 	if len(items) == 0 {
 		return
