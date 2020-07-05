@@ -3,7 +3,6 @@ package fs
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 
 	"github.com/paddlesteamer/cloudstash/internal/common"
@@ -114,7 +113,7 @@ func (r *CloudStashFs) Lookup(parent int64, name string) (*fuse.Entry, fuse.Stat
 }
 
 func (r *CloudStashFs) ReadDir(ino int64, fi *fuse.FileInfo, off int64, size int, w fuse.DirEntryWriter) fuse.Status {
-	log.Printf("readdir ino %d\n", ino)
+	fmt.Printf("readdir ino %d\n", ino)
 
 	dirmd, err := r.manager.GetMetadata(ino)
 	if err != nil {
@@ -178,7 +177,7 @@ func (r *CloudStashFs) ReadDir(ino int64, fi *fuse.FileInfo, off int64, size int
 }
 
 func (r *CloudStashFs) Rmdir(parent int64, name string) fuse.Status {
-	log.Printf("rmdir ino: %d name: %s\n", parent, name)
+	fmt.Printf("rmdir ino: %d name: %s\n", parent, name)
 
 	parentmd, err := r.manager.GetMetadata(parent)
 	if err != nil {
@@ -255,7 +254,7 @@ func (r *CloudStashFs) Open(ino int64, fi *fuse.FileInfo) fuse.Status {
 }
 
 func (r *CloudStashFs) OpenDir(ino int64, fi *fuse.FileInfo) fuse.Status {
-	log.Printf("open dir ino: %d\n", ino)
+	fmt.Printf("open dir ino: %d\n", ino)
 
 	md, err := r.manager.GetMetadata(ino)
 	if err != nil {
@@ -276,7 +275,7 @@ func (r *CloudStashFs) OpenDir(ino int64, fi *fuse.FileInfo) fuse.Status {
 }
 
 func (r *CloudStashFs) Write(p []byte, ino int64, off int64, fi *fuse.FileInfo) (int, fuse.Status) {
-	log.Printf("write ino: %d len: %d off: %d\n", ino, len(p), off)
+	fmt.Printf("write ino: %d len: %d off: %d\n", ino, len(p), off)
 
 	md, err := r.manager.GetMetadata(ino)
 	if err != nil {
