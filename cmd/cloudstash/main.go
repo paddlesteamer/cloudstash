@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/paddlesteamer/cloudstash/internal/auth"
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/config"
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
@@ -22,68 +21,32 @@ import (
 )
 
 func main() {
-	var cfgDir string
-	var mntDir string
+	cfgDir, mntDir := parseFlags()
 
-	flag.StringVar(&cfgDir, "c", "", "Application config directory. Optional.")
-	flag.StringVar(&mntDir, "m", "", "Application mount directory. Optional.")
-	flag.Parse()
-
-	var cfg *config.Cfg
-	if !config.DoesConfigExist(cfgDir) {
-		fmt.Print("Encryption key: ")
-		pwd, err := terminal.ReadPassword(int(syscall.Stdin))
-		if err != nil {
-			log.Fatalf("couldn't read password from terminal\n")
-		}
-
-		dbxToken, err := auth.GetDropboxToken(common.DROPBOX_APP_KEY)
-		if err != nil {
-			log.Fatalf("couldn't get dropbox access token: %v\n", err)
-		}
-
-		mnt := config.GetMountPoint(mntDir)
-
-		cfg = &config.Cfg{
-			EncryptionKey: string(pwd),
-			MountPoint:    mnt,
-			Dropbox: &config.DropboxCredentials{
-				AccessToken: dbxToken,
-			},
-		}
-
-		if err := config.WriteConfig(cfgDir, cfg); err != nil {
-			log.Fatalf("couldn't create config file: %v\n", err)
-		}
-
-	} else {
-		c, err := config.ParseConfig(cfgDir)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		cfg = c
+	// read existing or create new configuration
+	cfg, err := configure(cfgDir, mntDir)
+	if err != nil {
+		log.Fatalf("configuration error: %v", err)
 	}
 
-	if err := config.CreateMountPoint(cfg.MountPoint); err != nil {
-		log.Fatalf("couldn't create mount directory: %v\n", err)
+	// create mount directory
+	if err := os.MkdirAll(cfg.MountPoint, 0755); err != nil {
+		log.Fatalf("could not create mount directory: %v", err)
 	}
+	log.Printf("mount point: %s\n", cfg.MountPoint)
 
-	fmt.Printf("mount point: %s\n", cfg.MountPoint)
-
-	drives := collectDrives(cfg)
 	url, err := common.ParseURL(common.DATABASE_FILE)
 	if err != nil {
 		log.Fatalf("could not parse DB file URL: %v", err)
 	}
 
+	drives := collectDrives(cfg)
 	idx, err := findMatchingDriveIdx(url, drives)
 	if err != nil {
 		log.Fatalf("could not match DB file to any of the available drives: %v", err)
 	}
 
 	cipher := crypto.NewCrypto(cfg.EncryptionKey)
-
 	dbPath, hash, err := initOrImportDB(drives[idx], url.Path, cipher)
 	if err != nil {
 		log.Fatalf("could not initialize or import an existing DB file: %v", err)
@@ -104,9 +67,29 @@ func main() {
 	fuse.MountAndRun([]string{os.Args[0], cfg.MountPoint}, fs)
 }
 
+// parseFlags parses the command-line flags.
+func parseFlags() (cfgDir, mntDir string) {
+	flag.StringVar(&cfgDir, "c", "", "Application config directory, optional.")
+	flag.StringVar(&mntDir, "m", "", "Application mount directory, optional.")
+	flag.Parse()
+	return cfgDir, mntDir
+}
+
+func configure(cfgDir, mntDir string) (cfg *config.Cfg, err error) {
+	if config.DoesConfigExist(cfgDir) {
+		return config.ReadConfig(cfgDir)
+	}
+
+	fmt.Print("Enter encryption secret: ")
+	secret, err := terminal.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		return nil, fmt.Errorf("could not read encryption secret from terminal")
+	}
+	return config.NewConfig(cfgDir, mntDir, secret)
+}
+
 // collectDrives returns a slice of clients for each enabled drive.
-func collectDrives(cfg *config.Cfg) []drive.Drive {
-	drives := []drive.Drive{}
+func collectDrives(cfg *config.Cfg) (drives []drive.Drive) {
 	if cfg.Dropbox != nil {
 		dbox := drive.NewDropboxClient(cfg.Dropbox)
 		drives = append(drives, dbox)

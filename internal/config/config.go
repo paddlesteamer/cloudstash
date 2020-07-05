@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/paddlesteamer/cloudstash/internal/auth"
+	"github.com/paddlesteamer/cloudstash/internal/common"
 )
 
 type DropboxCredentials struct {
@@ -19,19 +22,21 @@ type Cfg struct {
 }
 
 const (
-	cfgFile   string = "config.json"
-	cfgFolder string = "cloudstash"
+	cfgFile         string = "config.json"
+	cfgFolder       string = "cloudstash"
+	mountFolderName string = "cloudstash"
 )
 
 func DoesConfigExist(dir string) bool {
 	path := getConfigPath(dir)
-
 	_, err := os.Stat(path)
-
-	return !os.IsNotExist(err)
+	if err != nil {
+		return false
+	}
+	return true
 }
 
-func ParseConfig(dir string) (*Cfg, error) {
+func ReadConfig(dir string) (*Cfg, error) {
 	path := getConfigPath(dir)
 
 	f, err := os.Open(path)
@@ -50,7 +55,26 @@ func ParseConfig(dir string) (*Cfg, error) {
 	return &cfg, nil
 }
 
-func WriteConfig(dir string, cfg *Cfg) error {
+func NewConfig(cfgDir, mntDir string, secret []byte) (cfg *Cfg, err error) {
+	dbxToken, err := auth.GetDropboxToken(common.DROPBOX_APP_KEY)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get dropbox access token: %v\n", err)
+	}
+
+	cfg = &Cfg{
+		EncryptionKey: string(secret),
+		MountPoint:    getMountPoint(mntDir),
+		Dropbox:       &DropboxCredentials{dbxToken},
+	}
+
+	if err := writeConfig(cfgDir, cfg); err != nil {
+		return nil, fmt.Errorf("couldn't create config file: %v", err)
+	}
+
+	return cfg, nil
+}
+
+func writeConfig(dir string, cfg *Cfg) error {
 	path := getConfigPath(dir)
 
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
@@ -75,7 +99,6 @@ func WriteConfig(dir string, cfg *Cfg) error {
 func getConfigPath(dir string) string {
 	if dir != "" {
 		dir = strings.TrimRight(dir, "/")
-
 		return fmt.Sprintf("%s/%s", dir, cfgFile)
 	}
 
@@ -85,4 +108,18 @@ func getConfigPath(dir string) string {
 	}
 
 	return fmt.Sprintf("%s/%s/%s", cfgDir, cfgFolder, cfgFile)
+}
+
+func getMountPoint(dir string) string {
+	if dir == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			homeDir = "~"
+		}
+
+		return fmt.Sprintf("%s/%s", homeDir, mountFolderName)
+	}
+
+	dir = strings.TrimRight(dir, "/")
+	return fmt.Sprintf("%s/%s", dir, mountFolderName)
 }

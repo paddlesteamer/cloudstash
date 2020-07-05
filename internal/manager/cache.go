@@ -34,7 +34,6 @@ const (
 func newCache() *cache.Cache {
 	c := cache.New(cacheExpiration, cleanupInterval)
 	c.OnEvicted(expirationHandler)
-
 	return c
 }
 
@@ -46,7 +45,5 @@ func expirationHandler(ino string, path interface{}) {
 }
 
 func newTracker() *cache.Cache {
-	t := cache.New(cache.NoExpiration, cache.NoExpiration)
-
-	return t
+	return cache.New(cache.NoExpiration, cache.NoExpiration)
 }
