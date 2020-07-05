@@ -1,7 +1,7 @@
 package manager
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"time"
 
@@ -40,7 +40,7 @@ func newCache() *cache.Cache {
 func expirationHandler(ino string, path interface{}) {
 	err := os.Remove(path.(string))
 	if err != nil {
-		log.Printf("couldn't delete cached file %s: %v", path, err)
+		fmt.Fprintf(os.Stderr, "couldn't delete cached file %s: %v", path, err)
 	}
 }
 
