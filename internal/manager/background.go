@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/paddlesteamer/cloudstash/internal/common"
@@ -77,45 +78,60 @@ func processChanges(m *Manager) {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
+	wg := sync.WaitGroup{}
+	wg.Add(len(items))
+
 	for local, it := range items {
 		url := it.Object.(string)
 
-		u, err := common.ParseURL(url)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't parse url %s. skipping: %v\n", url, err)
-			continue
-		}
-
-		drv, err := m.getDriveClient(u.Scheme)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't find drive client of %s: %v\n", u.Scheme, err)
-			continue
-		}
-
-		file, err := os.Open(local)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't open file %s: %v\n", local, err)
-			continue
-		}
-		defer file.Close()
-
-		hs := crypto.NewHashStream(drv)
-
-		err = drv.PutFile(u.Path, hs.NewHashReader(m.cipher.NewEncryptReader(file)))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't upload file: %v\n", err)
-			return
-		}
-
-		hash, err := hs.GetComputedHash()
-		if err != nil {
-			// just log the error and continue
-			fmt.Fprintf(os.Stderr, "couldn't compute hash of file: %v\n", err)
-		}
-
-		// if this file is database file
-		if local == m.db.path {
-			m.db.hash = hash
-		}
+		go processItem(local, url, m, &wg)
 	}
+
+	// wait for all uploads to complete otherwise
+	// the next processChanges call may conflict with this one
+	// also m.db.wUnlock would be called before it should
+	wg.Wait()
+}
+
+func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	u, err := common.ParseURL(url)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't parse url %s. skipping: %v\n", url, err)
+		return
+	}
+
+	drv, err := m.getDriveClient(u.Scheme)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't find drive client of %s: %v\n", u.Scheme, err)
+		return
+	}
+
+	file, err := os.Open(local)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't open file %s: %v\n", local, err)
+		return
+	}
+	defer file.Close()
+
+	hs := crypto.NewHashStream(drv)
+
+	err = drv.PutFile(u.Path, hs.NewHashReader(m.cipher.NewEncryptReader(file)))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't upload file: %v\n", err)
+		return
+	}
+
+	hash, err := hs.GetComputedHash()
+	if err != nil {
+		// just log the error and continue
+		fmt.Fprintf(os.Stderr, "couldn't compute hash of file: %v\n", err)
+	}
+
+	// if this file is database file
+	if local == m.db.path {
+		m.db.hash = hash
+	}
+
 }
