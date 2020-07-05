@@ -3,9 +3,15 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
+
+	"github.com/paddlesteamer/cloudstash/internal/auth"
+	"github.com/paddlesteamer/cloudstash/internal/common"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 type DropboxCredentials struct {
@@ -19,19 +25,59 @@ type Cfg struct {
 }
 
 const (
-	cfgFile   string = "config.json"
-	cfgFolder string = "cloudstash"
+	cfgFile         string = "config.json"
+	cfgFolder       string = "cloudstash"
+	mountFolderName string = "cloudstash"
 )
 
-func DoesConfigExist(dir string) bool {
-	path := getConfigPath(dir)
+// Configure reads configuration if it already exists or creates a new one if not.
+func Configure(cfgDir, mntDir string) (cfg *Cfg, err error) {
+	if doesConfigExist(cfgDir) {
+		return parseConfig(cfgDir)
+	}
 
-	_, err := os.Stat(path)
+	cfg, err = createConfig(cfgDir, mntDir)
+	if err != nil {
+		return nil, fmt.Errorf("could not create new configuration: %v", err)
+	}
 
-	return !os.IsNotExist(err)
+	if err := writeConfig(cfgDir, cfg); err != nil {
+		log.Fatalf("couldn't create config file: %v", err)
+	}
+
+	return cfg, nil
 }
 
-func ParseConfig(dir string) (*Cfg, error) {
+// createConfig creates a new configuration based on the given configuration & mount directories.
+func createConfig(cfgDir, mntDir string) (cfg *Cfg, err error) {
+	fmt.Print("Enter encryption secret: ")
+	pwd, err := terminal.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		return nil, fmt.Errorf("could not read encryption secret from terminal")
+	}
+
+	dbxToken, err := auth.GetDropboxToken(common.DROPBOX_APP_KEY)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get dropbox access token: %v\n", err)
+	}
+
+	return &Cfg{
+		EncryptionKey: string(pwd),
+		MountPoint:    getMountPoint(mntDir),
+		Dropbox:       &DropboxCredentials{dbxToken},
+	}, nil
+}
+
+func doesConfigExist(dir string) bool {
+	path := getConfigPath(dir)
+	_, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return true
+}
+
+func parseConfig(dir string) (*Cfg, error) {
 	path := getConfigPath(dir)
 
 	f, err := os.Open(path)
@@ -50,7 +96,7 @@ func ParseConfig(dir string) (*Cfg, error) {
 	return &cfg, nil
 }
 
-func WriteConfig(dir string, cfg *Cfg) error {
+func writeConfig(dir string, cfg *Cfg) error {
 	path := getConfigPath(dir)
 
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
@@ -75,7 +121,6 @@ func WriteConfig(dir string, cfg *Cfg) error {
 func getConfigPath(dir string) string {
 	if dir != "" {
 		dir = strings.TrimRight(dir, "/")
-
 		return fmt.Sprintf("%s/%s", dir, cfgFile)
 	}
 
@@ -85,4 +130,19 @@ func getConfigPath(dir string) string {
 	}
 
 	return fmt.Sprintf("%s/%s/%s", cfgDir, cfgFolder, cfgFile)
+}
+
+func getMountPoint(dir string) string {
+	if dir == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			homeDir = "~"
+		}
+
+		return fmt.Sprintf("%s/%s", homeDir, mountFolderName)
+	}
+
+	dir = strings.TrimRight(dir, "/")
+
+	return fmt.Sprintf("%s/%s", dir, mountFolderName)
 }

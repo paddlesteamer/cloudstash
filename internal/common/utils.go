@@ -8,8 +8,6 @@ import (
 	"net/url"
 	"os"
 	"time"
-
-	"github.com/paddlesteamer/cloudstash/internal/drive"
 )
 
 const (
@@ -32,16 +30,6 @@ func ParseURL(fileUrl string) (*FileURL, error) {
 		Scheme: u.Scheme,
 		Path:   fmt.Sprintf("/%s%s", u.Host, u.Path),
 	}, nil
-}
-
-func GetURL(drv drive.Drive, name string) string {
-	scheme := drv.GetProviderName()
-
-	if name[0] == '/' {
-		name = name[1:]
-	}
-
-	return fmt.Sprintf("%s://%s", scheme, name)
 }
 
 func NewTempCacheFile() (*os.File, error) {

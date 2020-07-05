@@ -8,7 +8,6 @@ import (
 
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files"
-
 	"github.com/paddlesteamer/cloudstash/internal/config"
 )
 
@@ -35,7 +34,8 @@ func (d *Dropbox) GetFile(path string) (*Metadata, io.ReadCloser, error) {
 	args := files.NewDownloadArg(path)
 	metadata, r, err := d.client.Download(args)
 	if err != nil {
-		if strings.Contains(err.Error(), "not_found") { // no other way to distinguish not found error
+		// no other way to distinguish not found error
+		if strings.Contains(err.Error(), "not_found") {
 			return nil, nil, ErrNotFound
 		}
 

@@ -2,6 +2,7 @@ package drive
 
 import (
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -19,4 +20,14 @@ type Metadata struct {
 	Name string
 	Size uint64
 	Hash string
+}
+
+func GetURL(drv Drive, name string) string {
+	scheme := drv.GetProviderName()
+
+	if name[0] == '/' {
+		name = name[1:]
+	}
+
+	return fmt.Sprintf("%s://%s", scheme, name)
 }

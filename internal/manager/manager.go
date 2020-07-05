@@ -58,7 +58,7 @@ func (m *Manager) NotifyChangeInFile(cachePath string, extPath string) {
 }
 
 func (m *Manager) NotifyChangeInDatabase() {
-	m.tracker.Add(m.db.path, common.GetURL(m.db.extDrive, m.db.extPath), cacheForever)
+	m.tracker.Add(m.db.path, drive.GetURL(m.db.extDrive, m.db.extPath), cacheForever)
 }
 
 func (m *Manager) Lookup(parent int64, name string) (*common.Metadata, error) {
@@ -334,7 +334,7 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metad
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
 
-	u := common.GetURL(m.selectDrive(), common.ObfuscateFileName(name))
+	u := drive.GetURL(m.selectDrive(), common.ObfuscateFileName(name))
 
 	tmpfile, err := common.NewTempCacheFile()
 	if err != nil {

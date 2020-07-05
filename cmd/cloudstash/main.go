@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/paddlesteamer/cloudstash/internal/auth"
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/config"
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
@@ -18,57 +17,21 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/manager"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
 	"github.com/paddlesteamer/go-fuse-c/fuse"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 func main() {
-	var cfgDir string
-	var mntDir string
+	cfgDir, mntDir := parseFlags()
 
-	flag.StringVar(&cfgDir, "c", "", "Application config directory. Optional.")
-	flag.StringVar(&mntDir, "m", "", "Application mount directory. Optional.")
-	flag.Parse()
-
-	var cfg *config.Cfg
-	if !config.DoesConfigExist(cfgDir) {
-		fmt.Print("Encryption key: ")
-		pwd, err := terminal.ReadPassword(int(syscall.Stdin))
-		if err != nil {
-			log.Fatalf("couldn't read password from terminal\n")
-		}
-
-		dbxToken, err := auth.GetDropboxToken(common.DROPBOX_APP_KEY)
-		if err != nil {
-			log.Fatalf("couldn't get dropbox access token: %v\n", err)
-		}
-
-		mnt := config.GetMountPoint(mntDir)
-
-		cfg = &config.Cfg{
-			EncryptionKey: string(pwd),
-			MountPoint:    mnt,
-			Dropbox: &config.DropboxCredentials{
-				AccessToken: dbxToken,
-			},
-		}
-
-		if err := config.WriteConfig(cfgDir, cfg); err != nil {
-			log.Fatalf("couldn't create config file: %v\n", err)
-		}
-
-	} else {
-		c, err := config.ParseConfig(cfgDir)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		cfg = c
+	// read existing or create new configuration
+	cfg, err := config.Configure(cfgDir, mntDir)
+	if err != nil {
+		log.Fatalf("could not configure: %v", err)
 	}
 
-	if err := config.CreateMountPoint(cfg.MountPoint); err != nil {
-		log.Fatalf("couldn't create mount directory: %v\n", err)
+	// create mount directory
+	if err := os.MkdirAll(cfg.MountPoint, 0755); err != nil {
+		log.Fatalf("could not create mount directory: %v", err)
 	}
-
 	fmt.Printf("mount point: %s\n", cfg.MountPoint)
 
 	drives := collectDrives(cfg)
@@ -83,7 +46,6 @@ func main() {
 	}
 
 	cipher := crypto.NewCrypto(cfg.EncryptionKey)
-
 	dbPath, hash, err := initOrImportDB(drives[idx], url.Path, cipher)
 	if err != nil {
 		log.Fatalf("could not initialize or import an existing DB file: %v", err)
@@ -102,6 +64,14 @@ func main() {
 
 	fs := fs.NewCloudStashFs(m)
 	fuse.MountAndRun([]string{os.Args[0], cfg.MountPoint}, fs)
+}
+
+// parseFlags parses the command-line flags.
+func parseFlags() (cfgDir, mntDir string) {
+	flag.StringVar(&cfgDir, "c", "", "Application config directory, optional.")
+	flag.StringVar(&mntDir, "m", "", "Application mount directory, optional.")
+	flag.Parse()
+	return cfgDir, mntDir
 }
 
 // collectDrives returns a slice of clients for each enabled drive.
