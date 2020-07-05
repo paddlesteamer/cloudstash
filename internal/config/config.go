@@ -6,11 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/paddlesteamer/cloudstash/internal/auth"
 	"github.com/paddlesteamer/cloudstash/internal/common"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 type DropboxCredentials struct {
@@ -29,45 +27,7 @@ const (
 	mountFolderName string = "cloudstash"
 )
 
-// Configure reads configuration if it already exists or creates a new one if not.
-func Configure(cfgDir, mntDir string) (cfg *Cfg, err error) {
-	if doesConfigExist(cfgDir) {
-		return parseConfig(cfgDir)
-	}
-
-	cfg, err = createConfig(cfgDir, mntDir)
-	if err != nil {
-		return nil, fmt.Errorf("could not create new configuration: %v", err)
-	}
-
-	if err := writeConfig(cfgDir, cfg); err != nil {
-		return nil, fmt.Errorf("couldn't create config file: %v", err)
-	}
-
-	return cfg, nil
-}
-
-// createConfig creates a new configuration based on the given configuration & mount directories.
-func createConfig(cfgDir, mntDir string) (cfg *Cfg, err error) {
-	fmt.Print("Enter encryption secret: ")
-	pwd, err := terminal.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		return nil, fmt.Errorf("could not read encryption secret from terminal")
-	}
-
-	dbxToken, err := auth.GetDropboxToken(common.DROPBOX_APP_KEY)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get dropbox access token: %v\n", err)
-	}
-
-	return &Cfg{
-		EncryptionKey: string(pwd),
-		MountPoint:    getMountPoint(mntDir),
-		Dropbox:       &DropboxCredentials{dbxToken},
-	}, nil
-}
-
-func doesConfigExist(dir string) bool {
+func DoesConfigExist(dir string) bool {
 	path := getConfigPath(dir)
 	_, err := os.Stat(path)
 	if err != nil {
@@ -76,7 +36,7 @@ func doesConfigExist(dir string) bool {
 	return true
 }
 
-func parseConfig(dir string) (*Cfg, error) {
+func ReadConfig(dir string) (*Cfg, error) {
 	path := getConfigPath(dir)
 
 	f, err := os.Open(path)
@@ -93,6 +53,25 @@ func parseConfig(dir string) (*Cfg, error) {
 	}
 
 	return &cfg, nil
+}
+
+func NewConfig(cfgDir, mntDir string, secret []byte) (cfg *Cfg, err error) {
+	dbxToken, err := auth.GetDropboxToken(common.DROPBOX_APP_KEY)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get dropbox access token: %v\n", err)
+	}
+
+	cfg = &Cfg{
+		EncryptionKey: string(secret),
+		MountPoint:    getMountPoint(mntDir),
+		Dropbox:       &DropboxCredentials{dbxToken},
+	}
+
+	if err := writeConfig(cfgDir, cfg); err != nil {
+		return nil, fmt.Errorf("couldn't create config file: %v", err)
+	}
+
+	return cfg, nil
 }
 
 func writeConfig(dir string, cfg *Cfg) error {

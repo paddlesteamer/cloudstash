@@ -17,15 +17,16 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/manager"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
 	"github.com/paddlesteamer/go-fuse-c/fuse"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 func main() {
 	cfgDir, mntDir := parseFlags()
 
 	// read existing or create new configuration
-	cfg, err := config.Configure(cfgDir, mntDir)
+	cfg, err := configure(cfgDir, mntDir)
 	if err != nil {
-		log.Fatalf("could not configure: %v", err)
+		log.Fatalf("configuration error: %v", err)
 	}
 
 	// create mount directory
@@ -72,6 +73,19 @@ func parseFlags() (cfgDir, mntDir string) {
 	flag.StringVar(&mntDir, "m", "", "Application mount directory, optional.")
 	flag.Parse()
 	return cfgDir, mntDir
+}
+
+func configure(cfgDir, mntDir string) (cfg *config.Cfg, err error) {
+	if config.DoesConfigExist(cfgDir) {
+		return config.ReadConfig(cfgDir)
+	}
+
+	fmt.Print("Enter encryption secret: ")
+	secret, err := terminal.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		return nil, fmt.Errorf("could not read encryption secret from terminal")
+	}
+	return config.NewConfig(cfgDir, mntDir, secret)
 }
 
 // collectDrives returns a slice of clients for each enabled drive.
