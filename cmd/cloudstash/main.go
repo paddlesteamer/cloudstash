@@ -32,14 +32,14 @@ func main() {
 	if err := os.MkdirAll(cfg.MountPoint, 0755); err != nil {
 		log.Fatalf("could not create mount directory: %v", err)
 	}
-	fmt.Printf("mount point: %s\n", cfg.MountPoint)
+	log.Printf("mount point: %s\n", cfg.MountPoint)
 
-	drives := collectDrives(cfg)
 	url, err := common.ParseURL(common.DATABASE_FILE)
 	if err != nil {
 		log.Fatalf("could not parse DB file URL: %v", err)
 	}
 
+	drives := collectDrives(cfg)
 	idx, err := findMatchingDriveIdx(url, drives)
 	if err != nil {
 		log.Fatalf("could not match DB file to any of the available drives: %v", err)
@@ -75,8 +75,7 @@ func parseFlags() (cfgDir, mntDir string) {
 }
 
 // collectDrives returns a slice of clients for each enabled drive.
-func collectDrives(cfg *config.Cfg) []drive.Drive {
-	drives := []drive.Drive{}
+func collectDrives(cfg *config.Cfg) (drives []drive.Drive) {
 	if cfg.Dropbox != nil {
 		dbox := drive.NewDropboxClient(cfg.Dropbox)
 		drives = append(drives, dbox)
