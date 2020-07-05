@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,7 +41,7 @@ func Configure(cfgDir, mntDir string) (cfg *Cfg, err error) {
 	}
 
 	if err := writeConfig(cfgDir, cfg); err != nil {
-		log.Fatalf("couldn't create config file: %v", err)
+		return nil, fmt.Errorf("couldn't create config file: %v", err)
 	}
 
 	return cfg, nil
@@ -143,6 +142,5 @@ func getMountPoint(dir string) string {
 	}
 
 	dir = strings.TrimRight(dir, "/")
-
 	return fmt.Sprintf("%s/%s", dir, mountFolderName)
 }
