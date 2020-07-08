@@ -192,6 +192,11 @@ func (fs *CloudStashFs) Rmdir(parent int64, name string) fuse.Status {
 	}
 
 	if err := fs.manager.RemoveDirectory(md.Inode); err != nil {
+		if err == common.ErrDirNotEmpty {
+			return fuse.ENOTEMPTY
+		}
+
+		fmt.Fprintf(os.Stderr, "couldn't remove directory '%s' under %d: %v\n", name, parent, err)
 		return fuse.EIO
 	}
 
