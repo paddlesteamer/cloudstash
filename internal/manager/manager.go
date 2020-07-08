@@ -46,7 +46,7 @@ func NewManager(drives []drive.Drive, db *database, cipher *crypto.Crypto, key s
 
 // Close cleanups cached files and process remaining file changes
 func (m *Manager) Close() {
-	processChanges(m, true)
+	processChanges(m, forceAll)
 
 	items := m.cache.Flush()
 
