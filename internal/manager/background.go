@@ -64,18 +64,25 @@ func checkChanges(m *Manager) {
 	}
 }
 
+const (
+	forceAll    = iota
+	checkAccess = iota
+)
+
 func processLocalChanges(m *Manager) {
 	for {
 		time.Sleep(processInterval)
-		processChanges(m, false)
+		processChanges(m, checkAccess)
 	}
 }
 
 // processChanges uploads changed local files to remote drive
-func processChanges(m *Manager, forceAll bool) {
+// if forceAll is provided, it ignores access time
+// and uploads all files in the tracker
+func processChanges(m *Manager, flag int) {
 	var items map[string]*cache.Item
 
-	if forceAll {
+	if flag == forceAll {
 		items = m.tracker.Flush()
 	} else {
 		items = m.tracker.FlushWithFilter(accessFilter)
