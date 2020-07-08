@@ -8,13 +8,14 @@ import (
 )
 
 type database struct {
-	path     string
-	extPath  string
-	hash     string
-	extDrive drive.Drive
-	mux      sync.RWMutex
+	path     string       // local path of database
+	extPath  string       // remote path of database (i.e. dropbox://cloudstash.sqlite3)
+	hash     string       // content hash of database computed by extDrive.ComputeHash
+	extDrive drive.Drive  // driver for remote operations
+	mux      sync.RWMutex // used in database queries, executions since go-sqlite3 isn't thread safe
 }
 
+// NewDB creates new database with provided parameters
 func NewDB(path, extPath, hash string, extDrive drive.Drive) *database {
 	return &database{
 		path:     path,
@@ -24,6 +25,8 @@ func NewDB(path, extPath, hash string, extDrive drive.Drive) *database {
 	}
 }
 
+// Close deletes database file from local filesystem
+// It should be called on exit
 func (db *database) Close() {
 	os.Remove(db.path)
 }

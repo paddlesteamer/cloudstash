@@ -24,6 +24,8 @@ func watchRemoteChanges(m *Manager) {
 	}
 }
 
+// checkChanges checks whether the remote database file is changed
+// and updates local database file if necessary
 func checkChanges(m *Manager) {
 	mdata, err := m.db.extDrive.GetFileMetadata(m.db.extPath)
 	if err != nil {
@@ -69,6 +71,7 @@ func processLocalChanges(m *Manager) {
 	}
 }
 
+// processChanges uploads changed local files to remote drive
 func processChanges(m *Manager, forceAll bool) {
 	var items map[string]*cache.Item
 
