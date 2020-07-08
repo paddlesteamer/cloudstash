@@ -14,6 +14,9 @@ import (
 	"github.com/paddlesteamer/go-cache"
 )
 
+// Manager is where all the business logic happens
+// It is responsible for keeping track of drives, cache, database, etc.
+// It is used by the `fs` package
 type Manager struct {
 	drives  []drive.Drive
 	key     string
@@ -23,6 +26,8 @@ type Manager struct {
 	cipher  *crypto.Crypto
 }
 
+// NewManager creates a new Manager struct with provided
+// parameters and starts background processes
 func NewManager(drives []drive.Drive, db *database, cipher *crypto.Crypto, key string) *Manager {
 	m := &Manager{
 		drives:  drives,
@@ -39,6 +44,7 @@ func NewManager(drives []drive.Drive, db *database, cipher *crypto.Crypto, key s
 	return m
 }
 
+// Close cleanups cached files and process remaining file changes
 func (m *Manager) Close() {
 	processChanges(m, true)
 
@@ -53,6 +59,8 @@ func (m *Manager) Close() {
 	}
 }
 
+// NotifyChangeInFile is called when file content is changed
+// It adds file to the tracker for later processing
 func (m *Manager) NotifyChangeInFile(cachePath string, remotePath string) {
 	m.tracker.Set(cachePath, trackerEntry{
 		cachePath:  cachePath,
@@ -61,6 +69,8 @@ func (m *Manager) NotifyChangeInFile(cachePath string, remotePath string) {
 	}, cacheForever)
 }
 
+// NotifyChangeInDatabase is called when database is changed
+// It adds database to the tracker for later processing
 func (m *Manager) NotifyChangeInDatabase() {
 	m.tracker.Set(m.db.path, trackerEntry{
 		cachePath:  m.db.path,
@@ -69,6 +79,8 @@ func (m *Manager) NotifyChangeInDatabase() {
 	}, cacheForever)
 }
 
+// Lookup searches provided directory for a file provided with 'name' parameter
+// If found returns it's metadata, if not found returns ErrNotFound
 func (m *Manager) Lookup(parent int64, name string) (*common.Metadata, error) {
 	m.db.rLock()
 	defer m.db.rUnlock()
@@ -91,6 +103,7 @@ func (m *Manager) Lookup(parent int64, name string) (*common.Metadata, error) {
 	return md, nil
 }
 
+// GetMetadata returns metadata of file with provided inode
 func (m *Manager) GetMetadata(inode int64) (*common.Metadata, error) {
 	m.db.rLock()
 	defer m.db.rUnlock()
@@ -113,6 +126,9 @@ func (m *Manager) GetMetadata(inode int64) (*common.Metadata, error) {
 	return md, nil
 }
 
+// UpdateMetadataFromCache checks changes in file from the cached version
+// and updates database accordingly. If the content is also changed
+// it calls NotifyChangeInFile in addition to NotifyChangeInDatabase
 func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
@@ -166,6 +182,7 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 	return nil
 }
 
+// UpdateMetadata updates file metadata
 func (m *Manager) UpdateMetadata(md *common.Metadata) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
@@ -186,6 +203,8 @@ func (m *Manager) UpdateMetadata(md *common.Metadata) error {
 	return nil
 }
 
+// GetDirectoryContent returns files and folders in the directory identified
+// by inode. It doesn't include '.' and '..'.
 func (m *Manager) GetDirectoryContent(parent int64) ([]common.Metadata, error) {
 	m.db.rLock()
 	defer m.db.rUnlock()
@@ -217,6 +236,8 @@ func (m *Manager) GetDirectoryContent(parent int64) ([]common.Metadata, error) {
 	return mdList, nil
 }
 
+// RemoveDirectory removes all of the directory contents and then
+// removes the directory itself.
 func (m *Manager) RemoveDirectory(ino int64) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
@@ -253,6 +274,7 @@ func (m *Manager) RemoveDirectory(ino int64) error {
 	return nil
 }
 
+// RemoveFile deletes file
 func (m *Manager) RemoveFile(md *common.Metadata) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
@@ -277,6 +299,8 @@ func (m *Manager) RemoveFile(md *common.Metadata) error {
 	return nil
 }
 
+// OpenFile opens file with provided flag. If the file isn't cached already,
+// it first fetches file from remote drive
 func (m *Manager) OpenFile(md *common.Metadata, flag int) (*os.File, error) {
 	var path string
 
@@ -314,6 +338,7 @@ func (m *Manager) OpenFile(md *common.Metadata, flag int) (*os.File, error) {
 	return file, nil
 }
 
+// AddDirectory creates a new directory under parent directory identified by inode
 func (m *Manager) AddDirectory(parent int64, name string, mode int) (*common.Metadata, error) {
 	m.db.wLock()
 	defer m.db.wUnlock()
@@ -333,6 +358,7 @@ func (m *Manager) AddDirectory(parent int64, name string, mode int) (*common.Met
 	return md, nil
 }
 
+// CreateFile creates a new empty file with provided permissions
 func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metadata, error) {
 	m.db.wLock()
 	defer m.db.wUnlock()
@@ -367,6 +393,7 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metad
 	return md, nil
 }
 
+// getDriveClient returns drive driver of the provided scheme
 func (m *Manager) getDriveClient(scheme string) (drive.Drive, error) {
 	for _, drv := range m.drives {
 		if drv.GetProviderName() == scheme {
@@ -377,6 +404,8 @@ func (m *Manager) getDriveClient(scheme string) (drive.Drive, error) {
 	return nil, fmt.Errorf("couldn't find driver")
 }
 
+// downloadFile downloads remote file to current hosts temp directory
+// and returns it's local path
 func (m *Manager) downloadFile(md *common.Metadata) (string, error) {
 	u, err := common.ParseURL(md.URL)
 	if err != nil {
