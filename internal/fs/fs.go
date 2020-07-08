@@ -12,6 +12,7 @@ import (
 
 type CloudStashFs struct {
 	manager *manager.Manager
+
 	fuse.DefaultFileSystem
 }
 
@@ -331,6 +332,7 @@ func (fs *CloudStashFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo
 	}
 
 	data := make([]byte, size)
+
 	n, err := reader.Read(data)
 	if err != nil && err != io.EOF {
 		fmt.Fprintf(os.Stderr, "couldn't read from reader: %v\n", err)
