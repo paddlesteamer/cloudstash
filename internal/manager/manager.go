@@ -40,7 +40,7 @@ func NewManager(drives []drive.Drive, db *database, cipher *crypto.Crypto, key s
 }
 
 func (m *Manager) Close() {
-	processChanges(m)
+	processChanges(m, true)
 
 	items := m.cache.Flush()
 
@@ -53,12 +53,20 @@ func (m *Manager) Close() {
 	}
 }
 
-func (m *Manager) NotifyChangeInFile(cachePath string, extPath string) {
-	m.tracker.Add(cachePath, extPath, cacheForever)
+func (m *Manager) NotifyChangeInFile(cachePath string, remotePath string) {
+	m.tracker.Set(cachePath, trackerEntry{
+		cachePath:  cachePath,
+		remotePath: remotePath,
+		accessTime: time.Now(),
+	}, cacheForever)
 }
 
 func (m *Manager) NotifyChangeInDatabase() {
-	m.tracker.Add(m.db.path, drive.GetURL(m.db.extDrive, m.db.extPath), cacheForever)
+	m.tracker.Set(m.db.path, trackerEntry{
+		cachePath:  m.db.path,
+		remotePath: drive.GetURL(m.db.extDrive, m.db.extPath),
+		accessTime: time.Now(),
+	}, cacheForever)
 }
 
 func (m *Manager) Lookup(parent int64, name string) (*common.Metadata, error) {

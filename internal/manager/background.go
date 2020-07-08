@@ -9,11 +9,12 @@ import (
 
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
+	"github.com/paddlesteamer/go-cache"
 )
 
 const (
 	checkInterval   time.Duration = 60 * time.Second
-	processInterval time.Duration = 10 * time.Second
+	processInterval time.Duration = 2 * time.Second
 )
 
 func watchRemoteChanges(m *Manager) {
@@ -64,37 +65,45 @@ func checkChanges(m *Manager) {
 func processLocalChanges(m *Manager) {
 	for {
 		time.Sleep(processInterval)
-		processChanges(m)
+		processChanges(m, false)
 	}
 }
 
-func processChanges(m *Manager) {
-	items := m.tracker.Flush()
+func processChanges(m *Manager, forceAll bool) {
+	var items map[string]*cache.Item
+
+	if forceAll {
+		items = m.tracker.Flush()
+	} else {
+		items = m.tracker.FlushWithFilter(accessFilter)
+	}
 
 	if len(items) == 0 {
 		return
 	}
 
-	m.db.wLock()
-	defer m.db.wUnlock()
-
 	wg := sync.WaitGroup{}
 	wg.Add(len(items))
 
-	for local, it := range items {
-		url := it.Object.(string)
+	for _, it := range items {
+		entry := it.Object.(trackerEntry)
 
-		go processItem(local, url, m, &wg)
+		go processItem(entry.cachePath, entry.remotePath, m, &wg)
 	}
 
 	// wait for all uploads to complete otherwise
 	// the next processChanges call may conflict with this one
-	// also m.db.wUnlock would be called before it should
 	wg.Wait()
 }
 
 func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 	defer wg.Done()
+
+	// if database file
+	if local == m.db.path {
+		m.db.wLock()
+		defer m.db.wUnlock()
+	}
 
 	u, err := common.ParseURL(url)
 	if err != nil {

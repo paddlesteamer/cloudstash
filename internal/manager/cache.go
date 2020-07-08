@@ -37,11 +37,27 @@ func newCache() *cache.Cache {
 	return c
 }
 
-func expirationHandler(ino string, path interface{}) {
-	err := os.Remove(path.(string))
+func expirationHandler(ino string, ent interface{}) {
+	entry := ent.(cacheEntry)
+
+	err := os.Remove(entry.path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't delete cached file %s: %v", path, err)
+		fmt.Fprintf(os.Stderr, "couldn't delete cached file %s: %v", entry.path, err)
 	}
+}
+
+type trackerEntry struct {
+	cachePath  string
+	remotePath string
+	accessTime time.Time
+}
+
+const idleTimeThreshold time.Duration = 10 * time.Second
+
+func accessFilter(it *cache.Item) bool {
+	entry := it.Object.(trackerEntry)
+
+	return time.Now().Sub(entry.accessTime) > idleTimeThreshold
 }
 
 func newTracker() *cache.Cache {
