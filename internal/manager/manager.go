@@ -253,15 +253,8 @@ func (m *Manager) RemoveDirectory(ino int64) error {
 		return fmt.Errorf("couldn't get children of %d: %v", ino, err)
 	}
 
-	for _, md := range mdList {
-		m.cache.Delete(strconv.FormatInt(md.Inode, 10))
-
-		go m.deleteRemoteFile(&md)
-	}
-
-	err = db.DeleteChildren(ino)
-	if err != nil {
-		return fmt.Errorf("couldn't delete children of inode %d: %v", ino, err)
+	if len(mdList) > 0 {
+		return common.ErrDirNotEmpty
 	}
 
 	err = db.Delete(ino)
@@ -438,7 +431,22 @@ func (m *Manager) downloadFile(md *common.Metadata) (string, error) {
 }
 
 func (m *Manager) deleteRemoteFile(md *common.Metadata) {
-	// @TODO: implement
+	u, err := common.ParseURL(md.URL)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't parse URL '%s': %v\n", md.URL, err)
+		return
+	}
+
+	drv, err := m.getDriveClient(u.Scheme)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't find drive '%s': %v\n", u.Scheme, err)
+		return
+	}
+
+	if err := drv.DeleteFile(u.Path); err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't delete file from remote drive '%s': %v\n", md.URL, err)
+		return
+	}
 }
 
 // @TODO: select drive according to available space

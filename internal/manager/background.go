@@ -65,14 +65,14 @@ func checkChanges(m *Manager) {
 }
 
 const (
-	forceAll    = iota
-	checkAccess = iota
+	forceAll        = iota
+	checkAccessTime = iota
 )
 
 func processLocalChanges(m *Manager) {
 	for {
 		time.Sleep(processInterval)
-		processChanges(m, checkAccess)
+		processChanges(m, checkAccessTime)
 	}
 }
 
