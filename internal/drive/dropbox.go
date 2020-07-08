@@ -52,8 +52,9 @@ func (d *Dropbox) GetFile(path string) (*Metadata, io.ReadCloser, error) {
 
 // PutFile uploads a new file.
 func (d *Dropbox) PutFile(path string, content io.Reader) error {
-	dargs := files.NewDeleteArg(path)
-	d.client.DeleteV2(dargs) //@TODO: ignore notfound error but check other errors
+	if err := d.DeleteFile(path); err != nil && err != ErrNotFound {
+		return fmt.Errorf("couldn't delete file from dropbox before upload: %v", err)
+	}
 
 	uargs := files.NewCommitInfo(path)
 	_, err := d.client.Upload(uargs, content)
@@ -80,6 +81,21 @@ func (d *Dropbox) GetFileMetadata(path string) (*Metadata, error) {
 		Size: metadata.(*files.FileMetadata).Size,
 		Hash: metadata.(*files.FileMetadata).ContentHash,
 	}, nil
+}
+
+// DeleteFile deletes file from dropbox
+func (d *Dropbox) DeleteFile(path string) error {
+	dargs := files.NewDeleteArg(path)
+	_, err := d.client.DeleteV2(dargs) //@TODO: ignore notfound error but check other errors
+	if err != nil {
+		if strings.Contains(err.Error(), "not_found") {
+			return ErrNotFound
+		}
+
+		return fmt.Errorf("couldn't delete file from dropbox: %v", err)
+	}
+
+	return nil
 }
 
 // ComputeHash computes content hash value according to

@@ -13,6 +13,7 @@ type Drive interface {
 	GetFile(path string) (*Metadata, io.ReadCloser, error)
 	PutFile(path string, content io.Reader) error
 	GetFileMetadata(path string) (*Metadata, error)
+	DeleteFile(path string) error
 	ComputeHash(r io.Reader, hchan chan string, echan chan error)
 }
 
