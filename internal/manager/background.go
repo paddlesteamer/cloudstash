@@ -9,6 +9,7 @@ import (
 
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
+	"github.com/paddlesteamer/cloudstash/internal/sqlite"
 	"github.com/paddlesteamer/go-cache"
 )
 
@@ -20,31 +21,33 @@ const (
 func watchRemoteChanges(m *Manager) {
 	for {
 		time.Sleep(checkInterval)
-		checkChanges(m)
+		if checkChanges(m) {
+			updateCache(m)
+		}
 	}
 }
 
 // checkChanges checks whether the remote database file is changed
 // and updates local database file if necessary
-func checkChanges(m *Manager) {
+func checkChanges(m *Manager) bool {
 	mdata, err := m.db.extDrive.GetFileMetadata(m.db.extPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return
+		return false
 	}
 
 	m.db.wLock()
 	defer m.db.wUnlock()
 
 	if mdata.Hash == m.db.hash {
-		return
+		return false
 	}
 
 	_, reader, err := m.db.extDrive.GetFile(m.db.extPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't get updated db file: %v\n", err)
 
-		return
+		return false
 	}
 	defer reader.Close()
 
@@ -52,7 +55,7 @@ func checkChanges(m *Manager) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't open db: %v\n", err)
 
-		return
+		return false
 	}
 	defer file.Close()
 
@@ -60,8 +63,36 @@ func checkChanges(m *Manager) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't copy contents of updated db file to local file: %v\n", err)
 
+		return false
+	}
+
+	return true
+}
+
+func updateCache(m *Manager) {
+	m.db.rLock()
+	defer m.db.rUnlock()
+
+	db, err := sqlite.NewClient()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't connect to database: %v\n", err)
+
 		return
 	}
+	defer db.Close()
+
+	m.cache.FlushWithFilter(func(key string, it *cache.Item) bool {
+		md, err := db.Get(common.ToInt64(key))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "couldn't get metadata of %s: %v\n", key, err)
+
+			return false
+		}
+
+		entry := it.Object.(cacheEntry)
+
+		return entry.hash != md.Hash
+	})
 }
 
 const (

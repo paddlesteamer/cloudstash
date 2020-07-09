@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -45,4 +46,14 @@ func ObfuscateFileName(name string) string {
 	io.WriteString(h, time.Now().String())
 
 	return fmt.Sprintf("%x.dat", h.Sum(nil))
+}
+
+func ToString(i int64) string {
+	return strconv.FormatInt(i, 10)
+}
+
+func ToInt64(s string) int64 {
+	i, _ := strconv.ParseInt(s, 10, 0)
+
+	return i
 }
