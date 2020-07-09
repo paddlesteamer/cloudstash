@@ -62,11 +62,15 @@ func main() {
 	m := manager.NewManager(drives, db, cipher, cfg.EncryptionKey)
 	defer m.Close()
 
+	// unmount when SIGINT, SIGTERM or SIGQUIT is received
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go func(ch chan os.Signal, mountpoint string) {
+		_ = <-ch
+		fuse.UMount(mountpoint)
+	}(signalCh, cfg.MountPoint)
 
-	go handleSignal(signalCh, cfg.MountPoint)
-
+	// mount the filesystem
 	fs := fs.NewCloudStashFs(m)
 	fuse.MountAndRun([]string{os.Args[0], cfg.MountPoint}, fs)
 }
@@ -186,10 +190,4 @@ func initOrImportDB(drv drive.Drive, extPath string, cipher *crypto.Crypto) (str
 	sqlite.SetPath(file.Name())
 
 	return file.Name(), hash, nil
-}
-
-func handleSignal(ch chan os.Signal, mountpoint string) {
-	_ = <-ch
-
-	fuse.UMount(mountpoint)
 }
