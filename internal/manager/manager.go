@@ -3,7 +3,6 @@ package manager
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"time"
@@ -364,7 +363,7 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*sqlite.Metad
 
 	u := drive.GetURL(m.selectDrive(), common.ObfuscateFileName(name))
 
-	tmpfile, err := ioutil.TempFile(os.TempDir(), common.CACHE_FILE_PREFIX)
+	tmpfile, err := common.NewTempCacheFile()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create cached file: %v", err)
 	}
@@ -417,7 +416,7 @@ func (m *Manager) downloadFile(md *sqlite.Metadata) (string, error) {
 	}
 	defer reader.Close()
 
-	tmpfile, err := ioutil.TempFile(os.TempDir(), common.CACHE_FILE_PREFIX)
+	tmpfile, err := common.NewTempCacheFile()
 	if err != nil {
 		return "", fmt.Errorf("couldn't create cached file: %v", err)
 	}

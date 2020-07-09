@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/paddlesteamer/cloudstash/internal/auth"
+	"github.com/paddlesteamer/cloudstash/internal/common"
 )
 
 type DropboxCredentials struct {
@@ -24,7 +25,6 @@ const (
 	cfgFile         = "config.json"
 	cfgFolder       = "cloudstash"
 	mountFolderName = "cloudstash"
-	dropboxAppKey   = "l4v6ipcr1rlwu1x"
 )
 
 func DoesConfigExist(dir string) bool {
@@ -56,7 +56,7 @@ func ReadConfig(dir string) (*Cfg, error) {
 }
 
 func NewConfig(cfgDir, mntDir string, secret []byte) (cfg *Cfg, err error) {
-	dbxToken, err := auth.GetDropboxToken(dropboxAppKey)
+	dbxToken, err := auth.GetDropboxToken(common.DROPBOX_APP_KEY)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get dropbox access token: %v\n", err)
 	}

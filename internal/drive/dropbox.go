@@ -31,7 +31,7 @@ func (d *Dropbox) GetProviderName() string {
 }
 
 // @todo: add descriptive comment
-func (d *Dropbox) GetFile(path string) (*metadata, io.ReadCloser, error) {
+func (d *Dropbox) GetFile(path string) (*Metadata, io.ReadCloser, error) {
 	args := files.NewDownloadArg(path)
 	md, r, err := d.client.Download(args)
 	if err != nil {
@@ -43,7 +43,7 @@ func (d *Dropbox) GetFile(path string) (*metadata, io.ReadCloser, error) {
 		return nil, nil, fmt.Errorf("could not get file from dropbox %s: %v", path, err)
 	}
 
-	m := &metadata{
+	m := &Metadata{
 		Name: md.Name,
 		Size: md.Size,
 		Hash: md.ContentHash,
@@ -67,7 +67,7 @@ func (d *Dropbox) PutFile(path string, content io.Reader) error {
 }
 
 // GetFileMetadata gets the file metadata given the file path.
-func (d *Dropbox) GetFileMetadata(path string) (*metadata, error) {
+func (d *Dropbox) GetFileMetadata(path string) (*Metadata, error) {
 	args := &files.GetMetadataArg{
 		Path: path,
 	}
@@ -77,7 +77,7 @@ func (d *Dropbox) GetFileMetadata(path string) (*metadata, error) {
 		return nil, fmt.Errorf("unable to get metadata of dropbox file '%s': %v", path, err)
 	}
 
-	return &metadata{
+	return &Metadata{
 		Name: md.(*files.FileMetadata).Name,
 		Size: md.(*files.FileMetadata).Size,
 		Hash: md.(*files.FileMetadata).ContentHash,

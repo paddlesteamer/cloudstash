@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
@@ -21,9 +20,6 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-// @todo: remove
-const DATABASE_FILE = "dropbox://cloudstash.sqlite3"
-
 func main() {
 	cfgDir, mntDir := parseFlags()
 
@@ -39,7 +35,7 @@ func main() {
 	}
 	log.Printf("mount point: %s\n", cfg.MountPoint)
 
-	dbUrl, err := common.ParseURL(DATABASE_FILE)
+	dbUrl, err := common.ParseURL(common.DATABASE_FILE)
 	if err != nil {
 		log.Fatalf("could not parse DB file URL: %v", err)
 	}
@@ -149,7 +145,7 @@ func initAndUploadDB(drv drive.Drive, dbPath, dbExtPath string, cipher *crypto.C
 }
 
 func initOrImportDB(drv drive.Drive, extPath string, cipher *crypto.Crypto) (string, string, error) {
-	file, err := ioutil.TempFile(os.TempDir(), common.DB_FILE_PREFIX)
+	file, err := common.NewTempDBFile()
 	if err != nil {
 		return "", "", fmt.Errorf("could not create DB file: %v", err)
 	}
