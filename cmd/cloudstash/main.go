@@ -23,7 +23,7 @@ import (
 func main() {
 	cfgDir, mntDir := parseFlags()
 
-	// read existing or create new configuration
+	// read existing or create new configuration file
 	cfg, err := configure(cfgDir, mntDir)
 	if err != nil {
 		log.Fatalf("configuration error: %v", err)
@@ -35,34 +35,38 @@ func main() {
 	}
 	log.Printf("mount point: %s\n", cfg.MountPoint)
 
-	url, err := common.ParseURL(common.DATABASE_FILE)
+	dbUrl, err := common.ParseURL(common.DATABASE_FILE)
 	if err != nil {
 		log.Fatalf("could not parse DB file URL: %v", err)
 	}
 
 	drives := collectDrives(cfg)
-	idx, err := findMatchingDriveIdx(url, drives)
+	idx, err := findMatchingDriveIdx(dbUrl, drives)
 	if err != nil {
 		log.Fatalf("could not match DB file to any of the available drives: %v", err)
 	}
 
 	cipher := crypto.NewCrypto(cfg.EncryptionKey)
-	dbPath, hash, err := initOrImportDB(drives[idx], url.Path, cipher)
+	dbPath, hash, err := initOrImportDB(drives[idx], dbUrl.Path, cipher)
 	if err != nil {
 		log.Fatalf("could not initialize or import an existing DB file: %v", err)
 	}
 
-	db := manager.NewDB(dbPath, url.Path, hash, drives[idx])
+	db := manager.NewDB(dbPath, dbUrl.Path, hash, drives[idx])
 	defer db.Close()
 
 	m := manager.NewManager(drives, db, cipher, cfg.EncryptionKey)
 	defer m.Close()
 
+	// unmount when SIGINT, SIGTERM or SIGQUIT is received
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go func(ch chan os.Signal, mountpoint string) {
+		_ = <-ch
+		fuse.UMount(mountpoint)
+	}(signalCh, cfg.MountPoint)
 
-	go handleSignal(signalCh, cfg.MountPoint)
-
+	// mount the filesystem
 	fs := fs.NewCloudStashFs(m)
 	fuse.MountAndRun([]string{os.Args[0], cfg.MountPoint}, fs)
 }
@@ -149,16 +153,18 @@ func initOrImportDB(drv drive.Drive, extPath string, cipher *crypto.Crypto) (str
 
 	_, reader, err := drv.GetFile(extPath)
 
-	if err == drive.ErrNotFound {
-		file.Close() // should be closed before initialization
+	if err != nil {
+		if err == common.ErrNotFound {
+			file.Close() // should be closed before initialization
 
-		hash, err := initAndUploadDB(drv, file.Name(), extPath, cipher)
-		if err != nil {
-			return "", "", fmt.Errorf("could not initialize DB: %v", err)
+			hash, err := initAndUploadDB(drv, file.Name(), extPath, cipher)
+			if err != nil {
+				return "", "", fmt.Errorf("could not initialize DB: %v", err)
+			}
+
+			return file.Name(), hash, nil
 		}
 
-		return file.Name(), hash, nil
-	} else if err != nil {
 		return "", "", fmt.Errorf("could not get file: %v", err)
 	}
 	defer reader.Close()
@@ -180,10 +186,4 @@ func initOrImportDB(drv drive.Drive, extPath string, cipher *crypto.Crypto) (str
 	sqlite.SetPath(file.Name())
 
 	return file.Name(), hash, nil
-}
-
-func handleSignal(ch chan os.Signal, mountpoint string) {
-	_ = <-ch
-
-	fuse.UMount(mountpoint)
 }

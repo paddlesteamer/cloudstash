@@ -76,7 +76,7 @@ func (c *Client) Close() {
 	c.db.Close()
 }
 
-func (c *Client) Search(parent int64, name string) (*common.Metadata, error) {
+func (c *Client) Search(parent int64, name string) (*Metadata, error) {
 	query, err := c.db.Prepare("SELECT * FROM files WHERE name=? and parent=?")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
@@ -95,7 +95,7 @@ func (c *Client) Search(parent int64, name string) (*common.Metadata, error) {
 	return c.parseRow(row)
 }
 
-func (c *Client) Get(inode int64) (*common.Metadata, error) {
+func (c *Client) Get(inode int64) (*Metadata, error) {
 	query, err := c.db.Prepare("SELECT * FROM files WHERE inode=?")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
@@ -138,7 +138,7 @@ func (c *Client) Delete(inode int64) error {
 	return nil
 }
 
-func (c *Client) GetChildren(parent int64) ([]common.Metadata, error) {
+func (c *Client) GetChildren(parent int64) ([]Metadata, error) {
 	query, err := c.db.Prepare("SELECT * FROM files WHERE parent=?")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
@@ -150,7 +150,7 @@ func (c *Client) GetChildren(parent int64) ([]common.Metadata, error) {
 	}
 	defer row.Close()
 
-	mdList := []common.Metadata{}
+	mdList := []Metadata{}
 	for row.Next() {
 		md, err := c.parseRow(row)
 		if err != nil {
@@ -182,7 +182,7 @@ func (c *Client) DeleteChildren(parent int64) error {
 	return nil
 }
 
-func (c *Client) AddDirectory(parent int64, name string, mode int) (*common.Metadata, error) {
+func (c *Client) AddDirectory(parent int64, name string, mode int) (*Metadata, error) {
 	query, err := c.db.Prepare("INSERT INTO files(name, mode, parent, type) VALUES(?, ?, ?, ?)")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
@@ -218,7 +218,7 @@ func (c *Client) AddDirectory(parent int64, name string, mode int) (*common.Meta
 	return md, nil
 }
 
-func (c *Client) CreateFile(parent int64, name string, mode int, url string, hash string) (*common.Metadata, error) {
+func (c *Client) CreateFile(parent int64, name string, mode int, url string, hash string) (*Metadata, error) {
 	query, err := c.db.Prepare("INSERT INTO files(name, url, size, mode, parent, type, hash) VALUES(?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
@@ -254,7 +254,7 @@ func (c *Client) CreateFile(parent int64, name string, mode int, url string, has
 	return md, nil
 }
 
-func (c *Client) Update(md *common.Metadata) error {
+func (c *Client) Update(md *Metadata) error {
 	query, err := c.db.Prepare("UPDATE files SET name=?, url=?, size=?, mode=?, parent=?, type=? WHERE inode=?")
 	if err != nil {
 		return fmt.Errorf("couldn't prepare statement: %v", err)
@@ -268,7 +268,7 @@ func (c *Client) Update(md *common.Metadata) error {
 	return nil
 }
 
-func (c *Client) fillNLink(md *common.Metadata) error {
+func (c *Client) fillNLink(md *Metadata) error {
 	if md.Type == common.DRV_FILE {
 		md.NLink = 1
 		return nil
@@ -299,8 +299,8 @@ func (c *Client) fillNLink(md *common.Metadata) error {
 	return nil
 }
 
-func (c *Client) parseRow(row *sql.Rows) (*common.Metadata, error) {
-	md := &common.Metadata{}
+func (c *Client) parseRow(row *sql.Rows) (*Metadata, error) {
+	md := &Metadata{}
 	err := row.Scan(&md.Inode, &md.Name, &md.URL, &md.Size, &md.Mode, &md.Parent, &md.Type, &md.Hash)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't parse row: %v", err)

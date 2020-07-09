@@ -8,6 +8,7 @@ import (
 
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files"
+	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/config"
 )
 
@@ -32,27 +33,27 @@ func (d *Dropbox) GetProviderName() string {
 // @todo: add descriptive comment
 func (d *Dropbox) GetFile(path string) (*Metadata, io.ReadCloser, error) {
 	args := files.NewDownloadArg(path)
-	metadata, r, err := d.client.Download(args)
+	md, r, err := d.client.Download(args)
 	if err != nil {
 		// no other way to distinguish not found error
 		if strings.Contains(err.Error(), "not_found") {
-			return nil, nil, ErrNotFound
+			return nil, nil, common.ErrNotFound
 		}
 
 		return nil, nil, fmt.Errorf("could not get file from dropbox %s: %v", path, err)
 	}
 
 	m := &Metadata{
-		Name: metadata.Name,
-		Size: metadata.Size,
-		Hash: metadata.ContentHash,
+		Name: md.Name,
+		Size: md.Size,
+		Hash: md.ContentHash,
 	}
 	return m, r, nil
 }
 
 // PutFile uploads a new file.
 func (d *Dropbox) PutFile(path string, content io.Reader) error {
-	if err := d.DeleteFile(path); err != nil && err != ErrNotFound {
+	if err := d.DeleteFile(path); err != nil && err != common.ErrNotFound {
 		return fmt.Errorf("couldn't delete file from dropbox before upload: %v", err)
 	}
 
@@ -71,15 +72,15 @@ func (d *Dropbox) GetFileMetadata(path string) (*Metadata, error) {
 		Path: path,
 	}
 
-	metadata, err := d.client.GetMetadata(args)
+	md, err := d.client.GetMetadata(args)
 	if err != nil {
-		return nil, fmt.Errorf("dropbox: unable to get metadata of %v: %v", path, err)
+		return nil, fmt.Errorf("unable to get metadata of dropbox file '%s': %v", path, err)
 	}
 
 	return &Metadata{
-		Name: metadata.(*files.FileMetadata).Name,
-		Size: metadata.(*files.FileMetadata).Size,
-		Hash: metadata.(*files.FileMetadata).ContentHash,
+		Name: md.(*files.FileMetadata).Name,
+		Size: md.(*files.FileMetadata).Size,
+		Hash: md.(*files.FileMetadata).ContentHash,
 	}, nil
 }
 
@@ -89,7 +90,7 @@ func (d *Dropbox) DeleteFile(path string) error {
 	_, err := d.client.DeleteV2(dargs) //@TODO: ignore notfound error but check other errors
 	if err != nil {
 		if strings.Contains(err.Error(), "not_found") {
-			return ErrNotFound
+			return common.ErrNotFound
 		}
 
 		return fmt.Errorf("couldn't delete file from dropbox: %v", err)

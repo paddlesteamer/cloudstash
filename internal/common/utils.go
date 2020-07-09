@@ -10,11 +10,6 @@ import (
 	"time"
 )
 
-const (
-	cacheFilePrefix = "cloudstash-cached-"
-	dbFilePrefix    = "cloudstash-db-"
-)
-
 type FileURL struct {
 	Scheme string
 	Path   string

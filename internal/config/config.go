@@ -22,9 +22,9 @@ type Cfg struct {
 }
 
 const (
-	cfgFile         string = "config.json"
-	cfgFolder       string = "cloudstash"
-	mountFolderName string = "cloudstash"
+	cfgFile         = "config.json"
+	cfgFolder       = "cloudstash"
+	mountFolderName = "cloudstash"
 )
 
 func DoesConfigExist(dir string) bool {
