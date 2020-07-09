@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/paddlesteamer/cloudstash/internal/common"
@@ -48,35 +47,7 @@ func NewManager(drives []drive.Drive, db *database, cipher *crypto.Crypto, key s
 func (m *Manager) Close() {
 	processChanges(m, forceAll)
 
-	items := m.cache.Flush()
-
-	for _, item := range items {
-		path := item.Object.(cacheEntry).path
-
-		if path != "" {
-			os.Remove(path)
-		}
-	}
-}
-
-// NotifyChangeInFile is called when file content is changed
-// It adds file to the tracker for later processing
-func (m *Manager) NotifyChangeInFile(cachePath string, remotePath string) {
-	m.tracker.Set(cachePath, trackerEntry{
-		cachePath:  cachePath,
-		remotePath: remotePath,
-		accessTime: time.Now(),
-	}, cacheForever)
-}
-
-// NotifyChangeInDatabase is called when database is changed
-// It adds database to the tracker for later processing
-func (m *Manager) NotifyChangeInDatabase() {
-	m.tracker.Set(m.db.path, trackerEntry{
-		cachePath:  m.db.path,
-		remotePath: drive.GetURL(m.db.extDrive, m.db.extPath),
-		accessTime: time.Now(),
-	}, cacheForever)
+	m.cache.Flush()
 }
 
 // Lookup searches provided directory for a file provided with 'name' parameter
@@ -128,12 +99,12 @@ func (m *Manager) GetMetadata(inode int64) (*sqlite.Metadata, error) {
 
 // UpdateMetadataFromCache checks changes in file from the cached version
 // and updates database accordingly. If the content is also changed
-// it calls NotifyChangeInFile in addition to NotifyChangeInDatabase
+// it calls notifyChangeInFile in addition to notifyChangeInDatabase
 func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	e, found := m.cache.GetWithExpirationUpdate(strconv.FormatInt(inode, 10), cacheExpiration)
+	e, found := m.cache.GetWithExpirationUpdate(common.ToString(inode), cacheExpiration)
 	if !found {
 		return fmt.Errorf("the file hasn't beed cached")
 	}
@@ -175,8 +146,8 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 			return fmt.Errorf("couldn't update file metadata: %v", err)
 		}
 
-		m.NotifyChangeInDatabase()
-		m.NotifyChangeInFile(path, md.URL)
+		m.notifyChangeInDatabase()
+		m.notifyChangeInFile(path, md.URL)
 	}
 
 	return nil
@@ -198,7 +169,7 @@ func (m *Manager) UpdateMetadata(md *sqlite.Metadata) error {
 		return fmt.Errorf("couldn't update file metadata: %v", err)
 	}
 
-	m.NotifyChangeInDatabase()
+	m.notifyChangeInDatabase()
 
 	return nil
 }
@@ -262,7 +233,7 @@ func (m *Manager) RemoveDirectory(ino int64) error {
 		return fmt.Errorf("children are removed but couldn't delete the parent itself of inode %d: %v", ino, err)
 	}
 
-	m.NotifyChangeInDatabase()
+	m.notifyChangeInDatabase()
 
 	return nil
 }
@@ -272,7 +243,7 @@ func (m *Manager) RemoveFile(md *sqlite.Metadata) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	m.cache.Delete(strconv.FormatInt(md.Inode, 10))
+	m.cache.Delete(common.ToString(md.Inode))
 
 	go m.deleteRemoteFile(md)
 
@@ -287,7 +258,7 @@ func (m *Manager) RemoveFile(md *sqlite.Metadata) error {
 		return fmt.Errorf("couldn't delete file: %v", err)
 	}
 
-	m.NotifyChangeInDatabase()
+	m.notifyChangeInDatabase()
 
 	return nil
 }
@@ -297,9 +268,9 @@ func (m *Manager) RemoveFile(md *sqlite.Metadata) error {
 func (m *Manager) OpenFile(md *sqlite.Metadata, flag int) (*os.File, error) {
 	var path string
 
-	e, found := m.cache.GetWithExpirationUpdate(strconv.FormatInt(md.Inode, 10), cacheExpiration)
+	e, found := m.cache.GetWithExpirationUpdate(common.ToString(md.Inode), cacheExpiration)
 	if !found {
-		m.cache.Set(strconv.FormatInt(md.Inode, 10), newCacheEntry("", fileDownloading), cacheExpiration)
+		m.cache.Set(common.ToString(md.Inode), newCacheEntry("", fileDownloading, ""), cacheExpiration)
 
 		p, err := m.downloadFile(md)
 		if err != nil {
@@ -308,7 +279,7 @@ func (m *Manager) OpenFile(md *sqlite.Metadata, flag int) (*os.File, error) {
 
 		path = p
 
-		m.cache.Set(strconv.FormatInt(md.Inode, 10), newCacheEntry(path, fileAvailable), cacheExpiration)
+		m.cache.Set(common.ToString(md.Inode), newCacheEntry(path, fileAvailable, md.Hash), cacheExpiration)
 	} else {
 		for {
 			entry := e.(cacheEntry)
@@ -317,7 +288,7 @@ func (m *Manager) OpenFile(md *sqlite.Metadata, flag int) (*os.File, error) {
 			}
 
 			time.Sleep(time.Microsecond * 10)
-			e, _ = m.cache.Get(strconv.FormatInt(md.Inode, 10))
+			e, _ = m.cache.Get(common.ToString(md.Inode))
 		}
 
 		path = e.(cacheEntry).path
@@ -346,7 +317,7 @@ func (m *Manager) AddDirectory(parent int64, name string, mode int) (*sqlite.Met
 		return nil, fmt.Errorf("couldn't create directory in database: %v", err)
 	}
 
-	m.NotifyChangeInDatabase()
+	m.notifyChangeInDatabase()
 
 	return md, nil
 }
@@ -381,7 +352,7 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*sqlite.Metad
 		return nil, fmt.Errorf("couldn't create file in database: %v", err)
 	}
 
-	m.cache.Set(strconv.FormatInt(md.Inode, 10), newCacheEntry(tmpfile.Name(), fileAvailable), cacheExpiration)
+	m.cache.Set(common.ToString(md.Inode), newCacheEntry(tmpfile.Name(), fileAvailable, checksum), cacheExpiration)
 
 	return md, nil
 }
@@ -452,4 +423,24 @@ func (m *Manager) deleteRemoteFile(md *sqlite.Metadata) {
 // @TODO: select drive according to available space
 func (m *Manager) selectDrive() drive.Drive {
 	return m.drives[0]
+}
+
+// notifyChangeInFile is called when file content is changed
+// It adds file to the tracker for later processing
+func (m *Manager) notifyChangeInFile(cachePath string, remotePath string) {
+	m.tracker.Set(cachePath, trackerEntry{
+		cachePath:  cachePath,
+		remotePath: remotePath,
+		accessTime: time.Now(),
+	}, cacheForever)
+}
+
+// notifyChangeInDatabase is called when database is changed
+// It adds database to the tracker for later processing
+func (m *Manager) notifyChangeInDatabase() {
+	m.tracker.Set(m.db.path, trackerEntry{
+		cachePath:  m.db.path,
+		remotePath: drive.GetURL(m.db.extDrive, m.db.extPath),
+		accessTime: time.Now(),
+	}, cacheForever)
 }

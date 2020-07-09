@@ -16,12 +16,14 @@ const (
 type cacheEntry struct {
 	path   string
 	status int
+	hash   string
 }
 
-func newCacheEntry(path string, status int) cacheEntry {
+func newCacheEntry(path string, status int, hash string) cacheEntry {
 	return cacheEntry{
 		path:   path,
 		status: status,
+		hash:   hash,
 	}
 }
 
@@ -54,7 +56,7 @@ type trackerEntry struct {
 
 const idleTimeThreshold time.Duration = 10 * time.Second
 
-func accessFilter(it *cache.Item) bool {
+func accessFilter(key string, it *cache.Item) bool {
 	entry := it.Object.(trackerEntry)
 
 	return time.Now().Sub(entry.accessTime) > idleTimeThreshold
