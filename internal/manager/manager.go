@@ -3,6 +3,7 @@ package manager
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"time"
@@ -81,7 +82,7 @@ func (m *Manager) NotifyChangeInDatabase() {
 
 // Lookup searches provided directory for a file provided with 'name' parameter
 // If found returns it's metadata, if not found returns ErrNotFound
-func (m *Manager) Lookup(parent int64, name string) (*common.Metadata, error) {
+func (m *Manager) Lookup(parent int64, name string) (*sqlite.Metadata, error) {
 	m.db.rLock()
 	defer m.db.rUnlock()
 
@@ -104,7 +105,7 @@ func (m *Manager) Lookup(parent int64, name string) (*common.Metadata, error) {
 }
 
 // GetMetadata returns metadata of file with provided inode
-func (m *Manager) GetMetadata(inode int64) (*common.Metadata, error) {
+func (m *Manager) GetMetadata(inode int64) (*sqlite.Metadata, error) {
 	m.db.rLock()
 	defer m.db.rUnlock()
 
@@ -183,7 +184,7 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 }
 
 // UpdateMetadata updates file metadata
-func (m *Manager) UpdateMetadata(md *common.Metadata) error {
+func (m *Manager) UpdateMetadata(md *sqlite.Metadata) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
@@ -205,7 +206,7 @@ func (m *Manager) UpdateMetadata(md *common.Metadata) error {
 
 // GetDirectoryContent returns files and folders in the directory identified
 // by inode. It doesn't include '.' and '..'.
-func (m *Manager) GetDirectoryContent(parent int64) ([]common.Metadata, error) {
+func (m *Manager) GetDirectoryContent(parent int64) ([]sqlite.Metadata, error) {
 	m.db.rLock()
 	defer m.db.rUnlock()
 
@@ -268,7 +269,7 @@ func (m *Manager) RemoveDirectory(ino int64) error {
 }
 
 // RemoveFile deletes file
-func (m *Manager) RemoveFile(md *common.Metadata) error {
+func (m *Manager) RemoveFile(md *sqlite.Metadata) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
@@ -294,7 +295,7 @@ func (m *Manager) RemoveFile(md *common.Metadata) error {
 
 // OpenFile opens file with provided flag. If the file isn't cached already,
 // it first fetches file from remote drive
-func (m *Manager) OpenFile(md *common.Metadata, flag int) (*os.File, error) {
+func (m *Manager) OpenFile(md *sqlite.Metadata, flag int) (*os.File, error) {
 	var path string
 
 	e, found := m.cache.GetWithExpirationUpdate(strconv.FormatInt(md.Inode, 10), cacheExpiration)
@@ -332,7 +333,7 @@ func (m *Manager) OpenFile(md *common.Metadata, flag int) (*os.File, error) {
 }
 
 // AddDirectory creates a new directory under parent directory identified by inode
-func (m *Manager) AddDirectory(parent int64, name string, mode int) (*common.Metadata, error) {
+func (m *Manager) AddDirectory(parent int64, name string, mode int) (*sqlite.Metadata, error) {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
@@ -352,7 +353,7 @@ func (m *Manager) AddDirectory(parent int64, name string, mode int) (*common.Met
 }
 
 // CreateFile creates a new empty file with provided permissions
-func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metadata, error) {
+func (m *Manager) CreateFile(parent int64, name string, mode int) (*sqlite.Metadata, error) {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
@@ -363,7 +364,7 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*common.Metad
 
 	u := drive.GetURL(m.selectDrive(), common.ObfuscateFileName(name))
 
-	tmpfile, err := common.NewTempCacheFile()
+	tmpfile, err := ioutil.TempFile(os.TempDir(), common.CACHE_FILE_PREFIX)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create cached file: %v", err)
 	}
@@ -399,7 +400,7 @@ func (m *Manager) getDriveClient(scheme string) (drive.Drive, error) {
 
 // downloadFile downloads remote file to current hosts temp directory
 // and returns it's local path
-func (m *Manager) downloadFile(md *common.Metadata) (string, error) {
+func (m *Manager) downloadFile(md *sqlite.Metadata) (string, error) {
 	u, err := common.ParseURL(md.URL)
 	if err != nil {
 		return "", fmt.Errorf("couldn't parse file url %s: %v", md.URL, err)
@@ -416,7 +417,7 @@ func (m *Manager) downloadFile(md *common.Metadata) (string, error) {
 	}
 	defer reader.Close()
 
-	tmpfile, err := common.NewTempCacheFile()
+	tmpfile, err := ioutil.TempFile(os.TempDir(), common.CACHE_FILE_PREFIX)
 	if err != nil {
 		return "", fmt.Errorf("couldn't create cached file: %v", err)
 	}
@@ -430,7 +431,7 @@ func (m *Manager) downloadFile(md *common.Metadata) (string, error) {
 	return tmpfile.Name(), nil
 }
 
-func (m *Manager) deleteRemoteFile(md *common.Metadata) {
+func (m *Manager) deleteRemoteFile(md *sqlite.Metadata) {
 	u, err := common.ParseURL(md.URL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't parse URL '%s': %v\n", md.URL, err)

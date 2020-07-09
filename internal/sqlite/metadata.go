@@ -1,4 +1,4 @@
-package common
+package sqlite
 
 type Metadata struct {
 	Inode  int64

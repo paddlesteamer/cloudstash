@@ -7,6 +7,7 @@ import (
 
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/manager"
+	"github.com/paddlesteamer/cloudstash/internal/sqlite"
 	"github.com/paddlesteamer/go-fuse-c/fuse"
 )
 
@@ -453,7 +454,7 @@ func (fs *CloudStashFs) Rename(oparent int64, oname string, tparent int64, tname
 	return fuse.OK
 }
 
-func newInode(md *common.Metadata) *fuse.InoAttr {
+func newInode(md *sqlite.Metadata) *fuse.InoAttr {
 	inode := &fuse.InoAttr{
 		Ino:     md.Inode,
 		NLink:   md.NLink,
