@@ -60,7 +60,7 @@ func checkChanges(m *Manager) bool {
 	defer file.Close()
 
 	_, err = io.Copy(file, m.cipher.NewDecryptReader(reader))
-	if err != nil {
+	if err != nil && err != io.EOF {
 		fmt.Fprintf(os.Stderr, "couldn't copy contents of updated db file to local file: %v\n", err)
 
 		return false
