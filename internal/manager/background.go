@@ -51,7 +51,7 @@ func checkChanges(m *Manager) bool {
 	}
 	defer reader.Close()
 
-	file, err := os.Open(m.db.path)
+	file, err := os.Create(m.db.path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't open db: %v\n", err)
 
@@ -59,12 +59,23 @@ func checkChanges(m *Manager) bool {
 	}
 	defer file.Close()
 
+	hs := crypto.NewHashStream(m.db.extDrive)
+
 	_, err = io.Copy(file, m.cipher.NewDecryptReader(reader))
-	if err != nil && err != io.EOF {
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't copy contents of updated db file to local file: %v\n", err)
 
 		return false
 	}
+
+	hash, err := hs.GetComputedHash()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't compute hash of database file: %v", err)
+
+		return false
+	}
+
+	m.db.hash = hash
 
 	return true
 }
