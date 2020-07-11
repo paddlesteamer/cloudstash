@@ -294,7 +294,7 @@ func (m *Manager) OpenFile(md *sqlite.Metadata, flag int) (*os.File, error) {
 		path = e.(cacheEntry).path
 	}
 
-	file, err := os.OpenFile(path, flag, os.ModeAppend)
+	file, err := os.OpenFile(path, flag, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't open file %s: %v", path, err)
 	}
