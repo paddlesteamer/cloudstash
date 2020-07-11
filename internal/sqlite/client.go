@@ -255,12 +255,12 @@ func (c *Client) CreateFile(parent int64, name string, mode int, url string, has
 }
 
 func (c *Client) Update(md *Metadata) error {
-	query, err := c.db.Prepare("UPDATE files SET name=?, url=?, size=?, mode=?, parent=?, type=? WHERE inode=?")
+	query, err := c.db.Prepare("UPDATE files SET name=?, url=?, size=?, mode=?, parent=?, type=?, hash=? WHERE inode=?")
 	if err != nil {
 		return fmt.Errorf("couldn't prepare statement: %v", err)
 	}
 
-	_, err = query.Exec(md.Name, md.URL, md.Size, md.Mode, md.Parent, md.Type, md.Inode)
+	_, err = query.Exec(md.Name, md.URL, md.Size, md.Mode, md.Parent, md.Type, md.Hash, md.Inode)
 	if err != nil {
 		return fmt.Errorf("couldn't update file: %v", err)
 	}
