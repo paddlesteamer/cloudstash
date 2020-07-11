@@ -273,7 +273,7 @@ func (fs *CloudStashFs) Write(p []byte, ino int64, off int64, fi *fuse.FileInfo)
 		return 0, fuse.EIO
 	}
 
-	writer, err := fs.manager.OpenFile(md, os.O_APPEND|os.O_WRONLY|os.O_CREATE)
+	writer, err := fs.manager.OpenFile(md, os.O_WRONLY)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't get writer: %v\n", err)
 
