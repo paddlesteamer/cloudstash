@@ -381,7 +381,7 @@ func (m *Manager) downloadFile(md *sqlite.Metadata) (string, error) {
 		return "", err
 	}
 
-	_, reader, err := drv.GetFile(u.Path)
+	reader, err := drv.GetFile(u.Path)
 	if err != nil {
 		return "", fmt.Errorf("couldn't get file '%s' from storage: %v", md.URL, err)
 	}
@@ -422,7 +422,7 @@ func (m *Manager) deleteRemoteFile(md *sqlite.Metadata) {
 
 // @TODO: select drive according to available space
 func (m *Manager) selectDrive() drive.Drive {
-	return m.drives[0]
+	return m.drives[1]
 }
 
 // notifyChangeInFile is called when file content is changed

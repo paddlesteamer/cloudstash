@@ -40,7 +40,11 @@ func main() {
 		log.Fatalf("could not parse DB file URL: %v", err)
 	}
 
-	drives := collectDrives(cfg)
+	drives, err := collectDrives(cfg)
+	if err != nil {
+		log.Fatalf("couldn't collect drives: %v", err)
+	}
+
 	idx, err := findMatchingDriveIdx(dbURL, drives)
 	if err != nil {
 		log.Fatalf("could not match DB file to any of the available drives: %v", err)
@@ -93,15 +97,23 @@ func configure(cfgDir, mntDir string) (cfg *config.Cfg, err error) {
 }
 
 // collectDrives returns a slice of clients for each enabled drive.
-func collectDrives(cfg *config.Cfg) (drives []drive.Drive) {
+func collectDrives(cfg *config.Cfg) ([]drive.Drive, error) {
+	drives := []drive.Drive{}
+
 	if cfg.Dropbox != nil {
 		dbox := drive.NewDropboxClient(cfg.Dropbox)
 		drives = append(drives, dbox)
 	}
 
-	// @TODO: add GDrive
+	if cfg.GDrive != nil {
+		gdrive, err := drive.NewGDriveClient(cfg.GDrive)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't create gdrive client: %v", err)
+		}
+		drives = append(drives, gdrive)
+	}
 
-	return drives
+	return drives, nil
 }
 
 // findMatchingDrive returns the drive from the given list that matches the DB file scheme.
@@ -151,7 +163,7 @@ func initOrImportDB(drv drive.Drive, extPath string, cipher *crypto.Crypto) (str
 	}
 	defer file.Close()
 
-	_, reader, err := drv.GetFile(extPath)
+	reader, err := drv.GetFile(extPath)
 
 	if err != nil {
 		if err == common.ErrNotFound {

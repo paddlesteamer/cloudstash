@@ -20,19 +20,24 @@ type Drive interface {
 
 	// GetFile returns metadata and reader of the requested remote file
 	// If file couldn't be found, it should return common.ErrNotFound
-	GetFile(path string) (*Metadata, io.ReadCloser, error)
+	GetFile(name string) (io.ReadCloser, error)
 
 	// PutFile uploads specified file to the remote drive
 	// It overwrites if the file exists
-	PutFile(path string, content io.Reader) error
+	PutFile(name string, content io.Reader) error
 
 	// GetFileMetadata returns metadata of the remote file
-	GetFileMetadata(path string) (*Metadata, error)
+	GetFileMetadata(name string) (*Metadata, error)
 
 	// DeleteFile removes file from the remote drive
-	DeleteFile(path string) error
+	DeleteFile(name string) error
 
-	// ComputeHash computes hash of file with drive's specific method
+	// ComputeHash computes hash of file with drive's specific method.
+	// This function is used as another thread, so return values should be
+	// printed to channels.
+	// r: reader of content to hash
+	// hchan: hash channel. computed hash should be printed to this channel
+	// echan: error channel. any error occurred should be printed to this channel
 	ComputeHash(r io.Reader, hchan chan string, echan chan error)
 }
 

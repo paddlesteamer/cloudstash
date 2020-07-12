@@ -43,7 +43,7 @@ func checkChanges(m *Manager) bool {
 		return false
 	}
 
-	_, reader, err := m.db.extDrive.GetFile(m.db.extPath)
+	reader, err := m.db.extDrive.GetFile(m.db.extPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't get updated db file: %v\n", err)
 
