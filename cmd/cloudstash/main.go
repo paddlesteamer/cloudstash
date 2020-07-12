@@ -35,24 +35,24 @@ func main() {
 	}
 	log.Printf("mount point: %s\n", cfg.MountPoint)
 
-	dbUrl, err := common.ParseURL(common.DATABASE_FILE)
+	dbURL, err := common.ParseURL(common.DATABASE_FILE)
 	if err != nil {
 		log.Fatalf("could not parse DB file URL: %v", err)
 	}
 
 	drives := collectDrives(cfg)
-	idx, err := findMatchingDriveIdx(dbUrl, drives)
+	idx, err := findMatchingDriveIdx(dbURL, drives)
 	if err != nil {
 		log.Fatalf("could not match DB file to any of the available drives: %v", err)
 	}
 
 	cipher := crypto.NewCrypto(cfg.EncryptionKey)
-	dbPath, hash, err := initOrImportDB(drives[idx], dbUrl.Path, cipher)
+	dbPath, hash, err := initOrImportDB(drives[idx], dbURL.Path, cipher)
 	if err != nil {
 		log.Fatalf("could not initialize or import an existing DB file: %v", err)
 	}
 
-	db := manager.NewDB(dbPath, dbUrl.Path, hash, drives[idx])
+	db := manager.NewDB(dbPath, dbURL.Path, hash, drives[idx])
 	defer db.Close()
 
 	m := manager.NewManager(drives, db, cipher, cfg.EncryptionKey)

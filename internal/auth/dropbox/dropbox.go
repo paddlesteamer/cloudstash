@@ -1,4 +1,4 @@
-package auth
+package dropbox
 
 import (
 	"context"
@@ -11,12 +11,12 @@ import (
 	"sync"
 
 	"github.com/icza/gox/osx"
+	"github.com/paddlesteamer/cloudstash/internal/auth"
 )
 
 const (
 	dropboxOAuth2URLTemplate = "https://www.dropbox.com/oauth2/authorize?client_id=%s&response_type=token&redirect_uri=%s"
 	dropboxRedirectURI       = "http://localhost:48500/dbx/redirect"
-	listenAddr               = "localhost:48500"
 )
 
 const htmlTemplate = `
@@ -68,8 +68,6 @@ if (atIdx === -1) {
 </script></head><html>
 ` // pure javascript
 
-const errNotAuthorized string = "notauthorized"
-
 type result struct {
 	Status int
 	Token  string
@@ -91,7 +89,7 @@ func tokenHandler(ch chan string) http.Handler {
 		json.Unmarshal(postBody, &res)
 
 		if res.Status == 0 {
-			ch <- errNotAuthorized
+			ch <- auth.ErrNotAuthorized
 			return
 		}
 
@@ -99,9 +97,9 @@ func tokenHandler(ch chan string) http.Handler {
 	})
 }
 
-func serve(wg *sync.WaitGroup, ch chan string) *http.Server {
+func dbxHandler(wg *sync.WaitGroup, ch chan string) *http.Server {
 	srv := &http.Server{
-		Addr: listenAddr,
+		Addr: auth.ListenAddr,
 	}
 
 	http.HandleFunc("/dbx/redirect", redirectHandler)
@@ -120,11 +118,11 @@ func serve(wg *sync.WaitGroup, ch chan string) *http.Server {
 	return srv
 }
 
-func GetDropboxToken(appkey string) (string, error) {
+func GetToken(appkey string) (string, error) {
 	ch := make(chan string)
 	wg := &sync.WaitGroup{}
 
-	srv := serve(wg, ch)
+	srv := dbxHandler(wg, ch)
 
 	osx.OpenDefault(fmt.Sprintf(dropboxOAuth2URLTemplate, appkey, url.QueryEscape(dropboxRedirectURI)))
 
@@ -136,8 +134,8 @@ func GetDropboxToken(appkey string) (string, error) {
 
 	wg.Wait()
 
-	if token == errNotAuthorized {
-		return "", fmt.Errorf("app is not authorized")
+	if token == auth.ErrNotAuthorized {
+		return "", fmt.Errorf("dropbox isn't authorized")
 	}
 
 	return token, nil

@@ -7,8 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/paddlesteamer/cloudstash/internal/auth"
+	"github.com/paddlesteamer/cloudstash/internal/auth/dropbox"
+	"github.com/paddlesteamer/cloudstash/internal/auth/gdrive"
 	"github.com/paddlesteamer/cloudstash/internal/common"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/drive/v3"
 )
 
 type DropboxCredentials struct {
@@ -19,6 +23,7 @@ type Cfg struct {
 	EncryptionKey string
 	MountPoint    string
 	Dropbox       *DropboxCredentials
+	GDrive        *oauth2.Token
 }
 
 const (
@@ -56,15 +61,23 @@ func ReadConfig(dir string) (*Cfg, error) {
 }
 
 func NewConfig(cfgDir, mntDir string, secret []byte) (cfg *Cfg, err error) {
-	dbxToken, err := auth.GetDropboxToken(common.DROPBOX_APP_KEY)
+	dbxToken, err := dropbox.GetToken(common.DROPBOX_APP_KEY)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get dropbox access token: %v\n", err)
+		return nil, fmt.Errorf("couldn't get dropbox access token: %v", err)
+	}
+
+	gdrvCfg, _ := google.ConfigFromJSON([]byte(common.GDRIVE_CREDENTIALS), drive.DriveFileScope)
+
+	gdrvToken, err := gdrive.GetToken(gdrvCfg)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get dropbox access token: %v", err)
 	}
 
 	cfg = &Cfg{
 		EncryptionKey: string(secret),
 		MountPoint:    getMountPoint(mntDir),
 		Dropbox:       &DropboxCredentials{dbxToken},
+		GDrive:        gdrvToken,
 	}
 
 	if err := writeConfig(cfgDir, cfg); err != nil {
