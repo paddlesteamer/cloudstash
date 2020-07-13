@@ -11,20 +11,29 @@ import (
 	"time"
 )
 
+// FileURL holds parsed file information
 type FileURL struct {
 	Scheme string
-	Path   string
+	Name   string
 }
 
-func ParseURL(fileUrl string) (*FileURL, error) {
-	u, err := url.Parse(fileUrl)
+// ParseURL parses provided fileURL and returns FileURL
+// a fileURL shouldn't include path info
+// i.e. A valid file URL is gdrive://filename
+// and i.e. gdrive://filepath/filename is invalid
+func ParseURL(fileURL string) (*FileURL, error) {
+	u, err := url.Parse(fileURL)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't parse url '%s': %v", fileUrl, err)
+		return nil, fmt.Errorf("couldn't parse url '%s': %v", fileURL, err)
+	}
+
+	if len(u.Path) > 0 {
+		return nil, fmt.Errorf("%s is not a valid file URL", fileURL)
 	}
 
 	return &FileURL{
 		Scheme: u.Scheme,
-		Path:   fmt.Sprintf("/%s%s", u.Host, u.Path),
+		Name:   u.Host,
 	}, nil
 }
 

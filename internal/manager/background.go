@@ -178,7 +178,7 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 
 	hs := crypto.NewHashStream(drv)
 
-	err = drv.PutFile(u.Path, hs.NewHashReader(m.cipher.NewEncryptReader(file)))
+	err = drv.PutFile(u.Name, hs.NewHashReader(m.cipher.NewEncryptReader(file)))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't upload file: %v\n", err)
 		return

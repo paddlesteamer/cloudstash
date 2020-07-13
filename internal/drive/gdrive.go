@@ -36,9 +36,12 @@ func (g *GDrive) GetProviderName() string {
 }
 
 func (g *GDrive) GetFile(name string) (io.ReadCloser, error) {
-	req := g.srv.Files.Get(name)
+	id, err := g.getFileId(name)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't retrieve file id: %v", err)
+	}
 
-	res, err := req.Download()
+	res, err := g.srv.Files.Get(id).Download()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't download file %s from gdrive: %v", name, err)
 	}
@@ -51,11 +54,8 @@ func (g *GDrive) PutFile(name string, content io.Reader) error {
 		Name: name,
 	}
 
-	req := g.srv.Files.Create(f)
-	call := req.Media(content)
-
 	// @todo: check specific errors - not all errors are errors
-	if _, err := call.Do(); err != nil {
+	if _, err := g.srv.Files.Create(f).Media(content).Do(); err != nil {
 		return fmt.Errorf("couldn't upload file %s: %v", name, err)
 	}
 
@@ -63,9 +63,12 @@ func (g *GDrive) PutFile(name string, content io.Reader) error {
 }
 
 func (g *GDrive) GetFileMetadata(name string) (*Metadata, error) {
-	req := g.srv.Files.Get(name)
+	id, err := g.getFileId(name)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't retrieve file id: %v", err)
+	}
 
-	md, err := req.Do()
+	md, err := g.srv.Files.Get(id).Do()
 	// @todo: check specific errors - not all errors are errors
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get file metadata: %v", err)
@@ -79,9 +82,12 @@ func (g *GDrive) GetFileMetadata(name string) (*Metadata, error) {
 }
 
 func (g *GDrive) DeleteFile(name string) error {
-	req := g.srv.Files.Delete(name)
+	id, err := g.getFileId(name)
+	if err != nil {
+		return fmt.Errorf("couldn't retrieve file id: %v", err)
+	}
 
-	if err := req.Do(); err != nil {
+	if err := g.srv.Files.Delete(id).Do(); err != nil {
 		return fmt.Errorf("couldn't delete file %s: %v", name, err)
 	}
 
@@ -96,4 +102,28 @@ func (g *GDrive) ComputeHash(r io.Reader, hchan chan string, echan chan error) {
 	}
 
 	hchan <- fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// @TODO: handle unlimited storage
+func (g *GDrive) GetAvailableSpace() (int64, error) {
+	res, err := g.srv.About.Get().Fields("storageQuota(limit, usage)").Do()
+	if err != nil {
+		return 0, fmt.Errorf("couldn't get available space: %v", err)
+	}
+
+	return res.StorageQuota.Limit - res.StorageQuota.Usage, nil
+}
+
+func (g *GDrive) getFileId(name string) (string, error) {
+	res, err := g.srv.Files.List().PageSize(10).
+		Q(fmt.Sprintf("name='%s'", name)).Fields("files(id, name)").Do()
+	if err != nil {
+		return "", fmt.Errorf("couldn't query file %s: %v", name, err)
+	}
+
+	if len(res.Files) != 1 {
+		return "", fmt.Errorf("unexpected number of files on gdrive %d", len(res.Files))
+	}
+
+	return res.Files[0].Id, nil
 }

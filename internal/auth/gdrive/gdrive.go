@@ -59,7 +59,6 @@ func GetToken(config *oauth2.Config) (*oauth2.Token, error) {
 
 	code := <-ch
 
-	fmt.Println(code)
 	if err := srv.Shutdown(context.Background()); err != nil {
 		return nil, fmt.Errorf("couldn't shutdown http server: %v", err)
 	}

@@ -381,7 +381,7 @@ func (m *Manager) downloadFile(md *sqlite.Metadata) (string, error) {
 		return "", err
 	}
 
-	reader, err := drv.GetFile(u.Path)
+	reader, err := drv.GetFile(u.Name)
 	if err != nil {
 		return "", fmt.Errorf("couldn't get file '%s' from storage: %v", md.URL, err)
 	}
@@ -414,7 +414,7 @@ func (m *Manager) deleteRemoteFile(md *sqlite.Metadata) {
 		return
 	}
 
-	if err := drv.DeleteFile(u.Path); err != nil {
+	if err := drv.DeleteFile(u.Name); err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't delete file from remote drive '%s': %v\n", md.URL, err)
 		return
 	}
@@ -422,7 +422,23 @@ func (m *Manager) deleteRemoteFile(md *sqlite.Metadata) {
 
 // @TODO: select drive according to available space
 func (m *Manager) selectDrive() drive.Drive {
-	return m.drives[1]
+	var max int64 = 0
+	idx := 0
+
+	for i, drv := range m.drives {
+		space, err := drv.GetAvailableSpace()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "couldn't get available space for %s: %v, ignoring...", drv.GetProviderName(), err)
+			continue
+		}
+
+		if space > max {
+			max = space
+			idx = i
+		}
+	}
+
+	return m.drives[idx]
 }
 
 // notifyChangeInFile is called when file content is changed

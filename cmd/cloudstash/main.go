@@ -51,12 +51,13 @@ func main() {
 	}
 
 	cipher := crypto.NewCrypto(cfg.EncryptionKey)
-	dbPath, hash, err := initOrImportDB(drives[idx], dbURL.Path, cipher)
+
+	dbPath, hash, err := initOrImportDB(drives[idx], dbURL.Name, cipher)
 	if err != nil {
 		log.Fatalf("could not initialize or import an existing DB file: %v", err)
 	}
 
-	db := manager.NewDB(dbPath, dbURL.Path, hash, drives[idx])
+	db := manager.NewDB(dbPath, dbURL.Name, hash, drives[idx])
 	defer db.Close()
 
 	m := manager.NewManager(drives, db, cipher, cfg.EncryptionKey)

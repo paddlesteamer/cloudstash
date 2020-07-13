@@ -8,12 +8,14 @@ import (
 
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files"
+	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/users"
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/config"
 )
 
 type Dropbox struct {
-	client files.Client
+	client  files.Client
+	account users.Client
 }
 
 // NewDropboxClient creates a new Dropbox client.
@@ -23,7 +25,10 @@ func NewDropboxClient(conf *config.DropboxCredentials) *Dropbox {
 		LogLevel: dropbox.LogDebug,
 	}
 
-	return &Dropbox{files.New(dbxConfig)}
+	return &Dropbox{
+		client:  files.New(dbxConfig),
+		account: users.New(dbxConfig),
+	}
 }
 
 func (d *Dropbox) GetProviderName() string {
@@ -32,6 +37,8 @@ func (d *Dropbox) GetProviderName() string {
 
 // @todo: add descriptive comment
 func (d *Dropbox) GetFile(name string) (io.ReadCloser, error) {
+	name = getPath(name)
+
 	args := files.NewDownloadArg(name)
 	_, r, err := d.client.Download(args)
 	if err != nil {
@@ -48,6 +55,8 @@ func (d *Dropbox) GetFile(name string) (io.ReadCloser, error) {
 
 // PutFile uploads a new file.
 func (d *Dropbox) PutFile(name string, content io.Reader) error {
+	name = getPath(name)
+
 	if err := d.DeleteFile(name); err != nil && err != common.ErrNotFound {
 		return fmt.Errorf("couldn't delete file from dropbox before upload: %v", err)
 	}
@@ -63,6 +72,8 @@ func (d *Dropbox) PutFile(name string, content io.Reader) error {
 
 // GetFileMetadata gets the file metadata given the file path.
 func (d *Dropbox) GetFileMetadata(name string) (*Metadata, error) {
+	name = getPath(name)
+
 	args := &files.GetMetadataArg{
 		Path: name,
 	}
@@ -81,6 +92,8 @@ func (d *Dropbox) GetFileMetadata(name string) (*Metadata, error) {
 
 // DeleteFile deletes file from dropbox
 func (d *Dropbox) DeleteFile(name string) error {
+	name = getPath(name)
+
 	dargs := files.NewDeleteArg(name)
 	_, err := d.client.DeleteV2(dargs) //@TODO: ignore notfound error but check other errors
 	if err != nil {
@@ -145,4 +158,21 @@ func (d *Dropbox) ComputeHash(r io.Reader, hchan chan string, echan chan error) 
 		}
 	}
 
+}
+
+func (d *Dropbox) GetAvailableSpace() (int64, error) {
+	res, err := d.account.GetSpaceUsage()
+	if err != nil {
+		return 0, fmt.Errorf("couldn't get available space on dropbox: %v", err)
+	}
+
+	return int64(res.Allocation.Individual.Allocated - res.Used), nil
+}
+
+func getPath(name string) string {
+	if name[0] == '/' {
+		return name
+	}
+
+	return fmt.Sprintf("/%s", name)
 }

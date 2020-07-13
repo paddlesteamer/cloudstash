@@ -39,6 +39,9 @@ type Drive interface {
 	// hchan: hash channel. computed hash should be printed to this channel
 	// echan: error channel. any error occurred should be printed to this channel
 	ComputeHash(r io.Reader, hchan chan string, echan chan error)
+
+	// GetAvailableSpace returns available space in bytes
+	GetAvailableSpace() (int64, error)
 }
 
 // GetURL creates URL of remote file
