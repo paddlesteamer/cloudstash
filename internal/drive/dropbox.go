@@ -8,12 +8,14 @@ import (
 
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files"
+	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/users"
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/config"
 )
 
 type Dropbox struct {
-	client files.Client
+	client  files.Client
+	account users.Client
 }
 
 // NewDropboxClient creates a new Dropbox client.
@@ -23,7 +25,10 @@ func NewDropboxClient(conf *config.DropboxCredentials) *Dropbox {
 		LogLevel: dropbox.LogDebug,
 	}
 
-	return &Dropbox{files.New(dbxConfig)}
+	return &Dropbox{
+		client:  files.New(dbxConfig),
+		account: users.New(dbxConfig),
+	}
 }
 
 func (d *Dropbox) GetProviderName() string {
@@ -31,50 +36,51 @@ func (d *Dropbox) GetProviderName() string {
 }
 
 // @todo: add descriptive comment
-func (d *Dropbox) GetFile(path string) (*Metadata, io.ReadCloser, error) {
-	args := files.NewDownloadArg(path)
-	md, r, err := d.client.Download(args)
+func (d *Dropbox) GetFile(name string) (io.ReadCloser, error) {
+	name = getPath(name)
+
+	args := files.NewDownloadArg(name)
+	_, r, err := d.client.Download(args)
 	if err != nil {
 		// no other way to distinguish not found error
 		if strings.Contains(err.Error(), "not_found") {
-			return nil, nil, common.ErrNotFound
+			return nil, common.ErrNotFound
 		}
 
-		return nil, nil, fmt.Errorf("could not get file from dropbox %s: %v", path, err)
+		return nil, fmt.Errorf("could not get file from dropbox %s: %v", name, err)
 	}
 
-	m := &Metadata{
-		Name: md.Name,
-		Size: md.Size,
-		Hash: md.ContentHash,
-	}
-	return m, r, nil
+	return r, nil
 }
 
 // PutFile uploads a new file.
-func (d *Dropbox) PutFile(path string, content io.Reader) error {
-	if err := d.DeleteFile(path); err != nil && err != common.ErrNotFound {
+func (d *Dropbox) PutFile(name string, content io.Reader) error {
+	name = getPath(name)
+
+	if err := d.DeleteFile(name); err != nil && err != common.ErrNotFound {
 		return fmt.Errorf("couldn't delete file from dropbox before upload: %v", err)
 	}
 
-	uargs := files.NewCommitInfo(path)
+	uargs := files.NewCommitInfo(name)
 	_, err := d.client.Upload(uargs, content)
 	if err != nil {
-		return fmt.Errorf("could not upload file to dropbox %s: %v", path, err)
+		return fmt.Errorf("could not upload file to dropbox %s: %v", name, err)
 	}
 
 	return nil
 }
 
 // GetFileMetadata gets the file metadata given the file path.
-func (d *Dropbox) GetFileMetadata(path string) (*Metadata, error) {
+func (d *Dropbox) GetFileMetadata(name string) (*Metadata, error) {
+	name = getPath(name)
+
 	args := &files.GetMetadataArg{
-		Path: path,
+		Path: name,
 	}
 
 	md, err := d.client.GetMetadata(args)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get metadata of dropbox file '%s': %v", path, err)
+		return nil, fmt.Errorf("unable to get metadata of dropbox file '%s': %v", name, err)
 	}
 
 	return &Metadata{
@@ -85,8 +91,10 @@ func (d *Dropbox) GetFileMetadata(path string) (*Metadata, error) {
 }
 
 // DeleteFile deletes file from dropbox
-func (d *Dropbox) DeleteFile(path string) error {
-	dargs := files.NewDeleteArg(path)
+func (d *Dropbox) DeleteFile(name string) error {
+	name = getPath(name)
+
+	dargs := files.NewDeleteArg(name)
 	_, err := d.client.DeleteV2(dargs) //@TODO: ignore notfound error but check other errors
 	if err != nil {
 		if strings.Contains(err.Error(), "not_found") {
@@ -150,4 +158,21 @@ func (d *Dropbox) ComputeHash(r io.Reader, hchan chan string, echan chan error) 
 		}
 	}
 
+}
+
+func (d *Dropbox) GetAvailableSpace() (int64, error) {
+	res, err := d.account.GetSpaceUsage()
+	if err != nil {
+		return 0, fmt.Errorf("couldn't get available space on dropbox: %v", err)
+	}
+
+	return int64(res.Allocation.Individual.Allocated - res.Used), nil
+}
+
+func getPath(name string) string {
+	if name[0] == '/' {
+		return name
+	}
+
+	return fmt.Sprintf("/%s", name)
 }

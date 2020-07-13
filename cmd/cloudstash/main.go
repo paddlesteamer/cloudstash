@@ -35,24 +35,29 @@ func main() {
 	}
 	log.Printf("mount point: %s\n", cfg.MountPoint)
 
-	dbUrl, err := common.ParseURL(common.DATABASE_FILE)
+	dbURL, err := common.ParseURL(common.DATABASE_FILE)
 	if err != nil {
 		log.Fatalf("could not parse DB file URL: %v", err)
 	}
 
-	drives := collectDrives(cfg)
-	idx, err := findMatchingDriveIdx(dbUrl, drives)
+	drives, err := collectDrives(cfg)
+	if err != nil {
+		log.Fatalf("couldn't collect drives: %v", err)
+	}
+
+	idx, err := findMatchingDriveIdx(dbURL, drives)
 	if err != nil {
 		log.Fatalf("could not match DB file to any of the available drives: %v", err)
 	}
 
 	cipher := crypto.NewCrypto(cfg.EncryptionKey)
-	dbPath, hash, err := initOrImportDB(drives[idx], dbUrl.Path, cipher)
+
+	dbPath, hash, err := initOrImportDB(drives[idx], dbURL.Name, cipher)
 	if err != nil {
 		log.Fatalf("could not initialize or import an existing DB file: %v", err)
 	}
 
-	db := manager.NewDB(dbPath, dbUrl.Path, hash, drives[idx])
+	db := manager.NewDB(dbPath, dbURL.Name, hash, drives[idx])
 	defer db.Close()
 
 	m := manager.NewManager(drives, db, cipher, cfg.EncryptionKey)
@@ -93,15 +98,23 @@ func configure(cfgDir, mntDir string) (cfg *config.Cfg, err error) {
 }
 
 // collectDrives returns a slice of clients for each enabled drive.
-func collectDrives(cfg *config.Cfg) (drives []drive.Drive) {
+func collectDrives(cfg *config.Cfg) ([]drive.Drive, error) {
+	drives := []drive.Drive{}
+
 	if cfg.Dropbox != nil {
 		dbox := drive.NewDropboxClient(cfg.Dropbox)
 		drives = append(drives, dbox)
 	}
 
-	// @TODO: add GDrive
+	if cfg.GDrive != nil {
+		gdrive, err := drive.NewGDriveClient(cfg.GDrive)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't create gdrive client: %v", err)
+		}
+		drives = append(drives, gdrive)
+	}
 
-	return drives
+	return drives, nil
 }
 
 // findMatchingDrive returns the drive from the given list that matches the DB file scheme.
@@ -151,7 +164,7 @@ func initOrImportDB(drv drive.Drive, extPath string, cipher *crypto.Crypto) (str
 	}
 	defer file.Close()
 
-	_, reader, err := drv.GetFile(extPath)
+	reader, err := drv.GetFile(extPath)
 
 	if err != nil {
 		if err == common.ErrNotFound {
