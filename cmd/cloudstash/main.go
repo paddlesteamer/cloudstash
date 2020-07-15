@@ -43,7 +43,7 @@ func main() {
 		log.Fatalf("couldn't search for db file: %v", err)
 	}
 
-	cipher := crypto.NewCrypto(cfg.EncryptionKey)
+	cipher := crypto.NewCipher(cfg.EncryptionKey)
 
 	m, err := manager.NewManager(drives, dbDrv, cipher, cfg.EncryptionKey)
 	if err != nil {

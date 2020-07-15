@@ -20,7 +20,7 @@ type database struct {
 }
 
 // newDB creates new database and uploads it
-func newDB(extDrive drive.Drive, cipher *crypto.Crypto) (*database, error) {
+func newDB(extDrive drive.Drive, cipher *crypto.Cipher) (*database, error) {
 	file, err := common.NewTempDBFile()
 	if err != nil {
 		return nil, fmt.Errorf("could not create DB file: %v", err)
@@ -61,7 +61,7 @@ func newDB(extDrive drive.Drive, cipher *crypto.Crypto) (*database, error) {
 }
 
 // fetchDB fetches database from remote storage
-func fetchDB(extDrive drive.Drive, cipher *crypto.Crypto) (*database, error) {
+func fetchDB(extDrive drive.Drive, cipher *crypto.Cipher) (*database, error) {
 	file, err := common.NewTempDBFile()
 	if err != nil {
 		return nil, fmt.Errorf("could not create DB file: %v", err)
