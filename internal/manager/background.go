@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	checkInterval   time.Duration = 60 * time.Second
+	checkInterval   time.Duration = 10 * time.Second
 	processInterval time.Duration = 2 * time.Second
 )
 
@@ -87,6 +87,9 @@ func updateCache(m *Manager) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't connect to database: %v\n", err)
 
+		// fallback to flush all
+		m.cache.Flush()
+
 		return
 	}
 	defer db.Close()
@@ -96,7 +99,8 @@ func updateCache(m *Manager) {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "couldn't get metadata of %s: %v\n", key, err)
 
-			return false
+			// if there is an error, remove it
+			return true
 		}
 
 		entry := it.Object.(cacheEntry)
@@ -172,7 +176,10 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 	if isDBFile {
 		md, err := drv.GetFileMetadata(u.Name)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't fet metadata of DB file: %v\n", err)
+			fmt.Fprintf(os.Stderr, "couldn't get metadata of DB file: %v\n", err)
+
+			// readd to tracker
+			m.notifyChangeInDatabase()
 			return
 		}
 
@@ -192,6 +199,9 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 	file, err := os.Open(local)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't open file %s: %v\n", local, err)
+
+		// readd to tracker
+		m.notifyChangeInFile(local, url)
 		return
 	}
 	defer file.Close()
@@ -201,13 +211,19 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 	err = drv.PutFile(u.Name, hs.NewHashReader(m.cipher.NewEncryptReader(file)))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't upload file: %v\n", err)
+
+		// readd to tracker
+		m.notifyChangeInFile(local, url)
 		return
 	}
 
 	hash, err := hs.GetComputedHash()
 	if err != nil {
-		// just log the error and continue
+		// log it and continue
 		fmt.Fprintf(os.Stderr, "couldn't compute hash of file: %v\n", err)
+
+		// this will force download of database
+		hash = ""
 	}
 
 	if isDBFile {
