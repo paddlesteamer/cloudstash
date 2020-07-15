@@ -22,12 +22,12 @@ type Manager struct {
 	db      *database
 	cache   *cache.Cache
 	tracker *cache.Cache
-	cipher  *crypto.Crypto
+	cipher  *crypto.Cipher
 }
 
 // NewManager creates a new Manager struct with provided
 // parameters and starts background processes
-func NewManager(drives []drive.Drive, dbDrv drive.Drive, cipher *crypto.Crypto, key string) (*Manager, error) {
+func NewManager(drives []drive.Drive, dbDrv drive.Drive, cipher *crypto.Cipher, key string) (*Manager, error) {
 	m := &Manager{
 		drives:  drives,
 		key:     key,

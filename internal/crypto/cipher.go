@@ -25,7 +25,7 @@ var salt = []byte{
 	0x32, 0x24, 0x45, 0xa3, 0xb3, 0x89, 0x83, 0x56, 0x24, 0x66, 0x61, 0x18, 0x19, 0xc2, 0xff, 0xd0,
 }
 
-type Crypto struct {
+type Cipher struct {
 	key []byte
 }
 
@@ -35,25 +35,25 @@ func DeriveKey(key []byte) string {
 	return fmt.Sprintf("%x", derived)
 }
 
-func NewCrypto(key string) *Crypto {
+func NewCipher(key string) *Cipher {
 	decoded, _ := hex.DecodeString(key)
 
-	return &Crypto{decoded}
+	return &Cipher{decoded}
 }
 
-func (c *Crypto) NewEncryptReader(r io.Reader) io.Reader {
+func (c *Cipher) NewEncryptReader(r io.Reader) io.Reader {
 	pr, pw := io.Pipe()
 	go c.encrypt(r, pw)
 	return pr
 }
 
-func (c *Crypto) NewDecryptReader(r io.Reader) io.Reader {
+func (c *Cipher) NewDecryptReader(r io.Reader) io.Reader {
 	pr, pw := io.Pipe()
 	go c.decrypt(r, pw)
 	return pr
 }
 
-func (c *Crypto) encrypt(r io.Reader, w io.WriteCloser) {
+func (c *Cipher) encrypt(r io.Reader, w io.WriteCloser) {
 	defer w.Close()
 
 	block, err := aes.NewCipher(c.key)
@@ -112,7 +112,7 @@ func (c *Crypto) encrypt(r io.Reader, w io.WriteCloser) {
 	}
 }
 
-func (c *Crypto) decrypt(r io.Reader, w io.WriteCloser) {
+func (c *Cipher) decrypt(r io.Reader, w io.WriteCloser) {
 	defer w.Close()
 
 	block, err := aes.NewCipher(c.key)
@@ -172,7 +172,7 @@ func (c *Crypto) decrypt(r io.Reader, w io.WriteCloser) {
 	}
 }
 
-func (c *Crypto) computeHMAC(chunk []byte) []byte {
+func (c *Cipher) computeHMAC(chunk []byte) []byte {
 	mac := hmac.New(sha256.New, c.key)
 	mac.Write(chunk)
 	return mac.Sum(nil)
