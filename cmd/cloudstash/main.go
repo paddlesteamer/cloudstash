@@ -49,7 +49,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("couldn't initialize manager: %v", err)
 	}
-	defer m.Close()
+	defer m.Clean()
 
 	// unmount when SIGINT, SIGTERM or SIGQUIT is received
 	signalCh := make(chan os.Signal, 1)

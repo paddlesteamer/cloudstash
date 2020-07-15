@@ -65,11 +65,13 @@ func NewManager(drives []drive.Drive, dbDrv drive.Drive, cipher *crypto.Cipher, 
 	return m, nil
 }
 
-// Close cleanups cached files and process remaining file changes
-func (m *Manager) Close() {
+// Clean clean ups cached files and process remaining file changes
+func (m *Manager) Clean() {
 	processChanges(m, forceAll)
 
 	m.cache.Flush()
+
+	m.db.clean()
 }
 
 // Lookup searches provided directory for a file provided with 'name' parameter

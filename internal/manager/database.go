@@ -95,9 +95,9 @@ func fetchDB(extDrive drive.Drive, cipher *crypto.Cipher) (*database, error) {
 	}, nil
 }
 
-// close deletes database file from local filesystem
+// clean deletes database file from local filesystem
 // It should be called on exit
-func (db *database) close() {
+func (db *database) clean() {
 	os.Remove(db.path)
 }
 
