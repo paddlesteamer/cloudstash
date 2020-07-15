@@ -80,6 +80,11 @@ func (d *Dropbox) GetFileMetadata(name string) (*Metadata, error) {
 
 	md, err := d.client.GetMetadata(args)
 	if err != nil {
+		// no other way to distinguish not found error
+		if strings.Contains(err.Error(), "not_found") {
+			return nil, common.ErrNotFound
+		}
+
 		return nil, fmt.Errorf("unable to get metadata of dropbox file '%s': %v", name, err)
 	}
 

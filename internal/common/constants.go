@@ -3,20 +3,18 @@ package common
 import "github.com/paddlesteamer/go-fuse-c/fuse"
 
 const (
-	DRV_FILE   = fuse.S_IFREG
-	DRV_FOLDER = fuse.S_IFDIR
+	DrvFile   = fuse.S_IFREG
+	DrvFolder = fuse.S_IFDIR
+
+	DatabaseFileName = "cloudstash.sqlite3"
 
 	cacheFilePrefix = "cloudstash-cached-"
 	dbFilePrefix    = "cloudstash-db-"
 )
 
 const (
-	DROPBOX_APP_KEY = "l4v6ipcr1rlwu1x"
-	DATABASE_FILE   = "dropbox://cloudstash.sqlite3" // @TODO: to be removed later
-)
-
-const (
-	GDRIVE_CREDENTIALS = `{
+	DropboxAppKey     = "l4v6ipcr1rlwu1x"
+	GDriveCredentials = `{
 		"installed":
 			{
 				"client_id":"731677456506-pm15gpb5d2c71ielkf2bkcu2d638tj12.apps.googleusercontent.com",
@@ -30,4 +28,5 @@ const (
 				]
 			}
 		}`
+	GDriveAppFolder = "cloudstash"
 )

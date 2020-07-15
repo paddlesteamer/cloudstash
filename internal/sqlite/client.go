@@ -13,7 +13,6 @@ type Client struct {
 }
 
 var (
-	filePath     string
 	tableSchemas = [...]string{
 		`CREATE TABLE files (
 		"inode"  INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -27,7 +26,7 @@ var (
 		UNIQUE("name", "parent"),
 		FOREIGN KEY("parent") REFERENCES folders("id")
 	);`,
-		fmt.Sprintf(`INSERT INTO files(inode, name, mode, parent, type) VALUES (1, "", 493, 0, %d);`, common.DRV_FOLDER), // root folder with mode 0755
+		fmt.Sprintf(`INSERT INTO files(inode, name, mode, parent, type) VALUES (1, "", 493, 0, %d);`, common.DrvFolder), // root folder with mode 0755
 	}
 )
 
@@ -51,18 +50,11 @@ func InitDB(path string) error {
 		}
 	}
 
-	SetPath(path)
-
 	return nil
 }
 
-// SetPath sets database file path
-func SetPath(path string) {
-	filePath = path
-}
-
 // NewClient returns a new database connection.
-func NewClient() (*Client, error) {
+func NewClient(filePath string) (*Client, error) {
 	db, err := sql.Open("sqlite3", filePath)
 	if err != nil {
 		return nil, fmt.Errorf("could not open DB at %s: %v", filePath, err)
@@ -188,7 +180,7 @@ func (c *Client) AddDirectory(parent int64, name string, mode int) (*Metadata, e
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
 	}
 
-	_, err = query.Exec(name, mode, parent, common.DRV_FOLDER)
+	_, err = query.Exec(name, mode, parent, common.DrvFolder)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't insert directory: %v", err)
 	}
@@ -224,7 +216,7 @@ func (c *Client) CreateFile(parent int64, name string, mode int, url string, has
 		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
 	}
 
-	_, err = query.Exec(name, url, 0, mode, parent, common.DRV_FILE, hash)
+	_, err = query.Exec(name, url, 0, mode, parent, common.DrvFile, hash)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't insert file: %v", err)
 	}
@@ -269,7 +261,7 @@ func (c *Client) Update(md *Metadata) error {
 }
 
 func (c *Client) fillNLink(md *Metadata) error {
-	if md.Type == common.DRV_FILE {
+	if md.Type == common.DrvFile {
 		md.NLink = 1
 		return nil
 	}
@@ -279,7 +271,7 @@ func (c *Client) fillNLink(md *Metadata) error {
 		return fmt.Errorf("couldn't prepare statement: %v", err)
 	}
 
-	row, err := query.Query(md.Inode, common.DRV_FOLDER)
+	row, err := query.Query(md.Inode, common.DrvFolder)
 	if err != nil {
 		return fmt.Errorf("there is an error in query: %v", err)
 	}
