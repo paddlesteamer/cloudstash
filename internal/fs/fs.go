@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/manager"
@@ -22,6 +23,8 @@ func NewCloudStashFs(m *manager.Manager) *CloudStashFs {
 }
 
 func (fs *CloudStashFs) StatFs(ino int64) (*fuse.StatVFS, fuse.Status) {
+	fmt.Printf("statfs\n")
+
 	return nil, fuse.ENOSYS
 }
 
@@ -206,6 +209,11 @@ func (fs *CloudStashFs) Rmdir(parent int64, name string) fuse.Status {
 
 func (fs *CloudStashFs) Create(parent int64, name string, mode int, fi *fuse.FileInfo) (*fuse.Entry, fuse.Status) {
 	fmt.Printf("create parent: %d name: %s\n", parent, name)
+
+	if !isValidName(name) {
+		return nil, fuse.EPERM
+	}
+
 	md, err := fs.manager.CreateFile(parent, name, mode)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't create file: %v", err)
@@ -356,6 +364,10 @@ func (fs *CloudStashFs) Read(ino int64, size int64, off int64, fi *fuse.FileInfo
 func (fs *CloudStashFs) Mkdir(parent int64, name string, mode int) (*fuse.Entry, fuse.Status) {
 	fmt.Printf("mkdir parent: %d name: %s\n", parent, name)
 
+	if !isValidName(name) {
+		return nil, fuse.EPERM
+	}
+
 	md, err := fs.manager.AddDirectory(parent, name, mode)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't create directory: %v", err)
@@ -408,6 +420,10 @@ func (fs *CloudStashFs) Unlink(parent int64, name string) fuse.Status {
 
 func (fs *CloudStashFs) Rename(oparent int64, oname string, tparent int64, tname string) fuse.Status {
 	fmt.Printf("rename p: %d name: %s\n", oparent, oname)
+
+	if !isValidName(tname) {
+		return fuse.EPERM
+	}
 
 	oparentmd, err := fs.manager.GetMetadata(oparent)
 	if err != nil {
@@ -469,4 +485,19 @@ func newInode(md *sqlite.Metadata) *fuse.InoAttr {
 	}
 
 	return inode
+}
+
+// isValidName returns if provided name is allowed in filesystem.
+// '/' character in name is not allowed.
+// '.' and '..' as name also is not allowed.
+func isValidName(name string) bool {
+	if name == "." {
+		return false
+	}
+
+	if name == ".." {
+		return false
+	}
+
+	return !strings.Contains(name, "/")
 }
