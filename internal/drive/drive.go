@@ -32,6 +32,9 @@ type Drive interface {
 	// DeleteFile removes file from the remote drive
 	DeleteFile(name string) error
 
+	// MoveFile renames file
+	MoveFile(name string, newName string) error
+
 	// ComputeHash computes hash of file with drive's specific method.
 	// This function is used as another thread, so return values should be
 	// printed to channels.

@@ -150,8 +150,9 @@ func processChanges(m *Manager, flag int) {
 func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	// if database file
-	if local == m.db.path {
+	isDBFile := local == m.db.path
+
+	if isDBFile {
 		m.db.wLock()
 		defer m.db.wUnlock()
 	}
@@ -166,6 +167,26 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't find drive client of %s: %v\n", u.Scheme, err)
 		return
+	}
+
+	if isDBFile {
+		md, err := drv.GetFileMetadata(u.Name)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "couldn't fet metadata of DB file: %v\n", err)
+			return
+		}
+
+		if md.Hash != m.db.hash {
+			// @TODO: try to merge databases first
+			fmt.Fprintf(os.Stderr, "remote DB file is also changed, moving remote file...\n")
+
+			err := drv.MoveFile(common.DatabaseFileName,
+				common.GenerateConflictedFileName(common.DatabaseFileName))
+			if err != nil {
+				// log and ignore
+				fmt.Fprintf(os.Stderr, "unable to rename remote DB file: %v\n", err)
+			}
+		}
 	}
 
 	file, err := os.Open(local)
@@ -189,8 +210,7 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 		fmt.Fprintf(os.Stderr, "couldn't compute hash of file: %v\n", err)
 	}
 
-	// if this file is database file
-	if local == m.db.path {
+	if isDBFile {
 		m.db.hash = hash
 	}
 

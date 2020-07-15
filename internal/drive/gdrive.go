@@ -142,6 +142,23 @@ func (g *GDrive) DeleteFile(name string) error {
 	return nil
 }
 
+func (g *GDrive) MoveFile(name string, newName string) error {
+	id, err := g.getFileId(name)
+	if err != nil {
+		return fmt.Errorf("couldn't retrieve file %s's id: %v", name, err)
+	}
+
+	f := &drive.File{
+		Name: newName,
+	}
+
+	if _, err := g.srv.Files.Update(id, f).Do(); err != nil {
+		return fmt.Errorf("couldn't move file from %s to %s on gdrive: %v", name, newName, err)
+	}
+
+	return nil
+}
+
 func (g *GDrive) ComputeHash(r io.Reader, hchan chan string, echan chan error) {
 	h := md5.New()
 
