@@ -56,6 +56,9 @@ func ObfuscateFileName(name string) string {
 
 	return fmt.Sprintf("%x.dat", h.Sum(nil))
 }
+func GenerateConflictedFileName(name string) string {
+	return fmt.Sprintf("conflicted_copy_%d_%s", time.Now().UnixNano(), name)
+}
 
 func ToString(i int64) string {
 	return strconv.FormatInt(i, 10)

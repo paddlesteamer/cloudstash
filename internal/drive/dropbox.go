@@ -100,13 +100,25 @@ func (d *Dropbox) DeleteFile(name string) error {
 	name = getPath(name)
 
 	dargs := files.NewDeleteArg(name)
-	_, err := d.client.DeleteV2(dargs) //@TODO: ignore notfound error but check other errors
-	if err != nil {
+	if _, err := d.client.DeleteV2(dargs); err != nil {
 		if strings.Contains(err.Error(), "not_found") {
 			return common.ErrNotFound
 		}
 
 		return fmt.Errorf("couldn't delete file from dropbox: %v", err)
+	}
+
+	return nil
+}
+
+// MoveFile renames file on dropbox
+func (d *Dropbox) MoveFile(name string, newName string) error {
+	name = getPath(name)
+	newName = getPath(newName)
+
+	args := files.NewRelocationArg(name, newName)
+	if _, err := d.client.MoveV2(args); err != nil {
+		return fmt.Errorf("couldn't move file from %s to %s on dropbox: %v", name, newName, err)
 	}
 
 	return nil
