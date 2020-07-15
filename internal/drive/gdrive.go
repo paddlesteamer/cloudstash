@@ -112,7 +112,7 @@ func (g *GDrive) GetFileMetadata(name string) (*Metadata, error) {
 		return nil, err
 	}
 
-	md, err := g.srv.Files.Get(id).Do()
+	md, err := g.srv.Files.Get(id).Fields("name,size,md5Checksum").Do()
 	// @todo: check specific errors - not all errors are errors
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get file metadata: %v", err)
