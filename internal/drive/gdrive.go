@@ -13,11 +13,12 @@ import (
 )
 
 type GDrive struct {
-	srv *drive.Service
+	srv          *drive.Service
+	rootFolderID string
 }
 
 func NewGDriveClient(token *oauth2.Token) (*GDrive, error) {
-	config, _ := google.ConfigFromJSON([]byte(common.GDRIVE_CREDENTIALS), drive.DriveFileScope)
+	config, _ := google.ConfigFromJSON([]byte(common.GDriveCredentials), drive.DriveFileScope)
 
 	client := config.Client(context.Background(), token)
 
@@ -26,9 +27,32 @@ func NewGDriveClient(token *oauth2.Token) (*GDrive, error) {
 		return nil, fmt.Errorf("couldn't create GDrive service: %v", err)
 	}
 
-	return &GDrive{
+	drv := &GDrive{
 		srv: srv,
-	}, nil
+	}
+
+	folder, err := drv.getFileId(common.GDriveAppFolder)
+	if err != nil && err != common.ErrNotFound {
+		return nil, fmt.Errorf("couldn't query for root folder: %v", err)
+	}
+
+	if err == common.ErrNotFound {
+		f := &drive.File{
+			Name:     common.GDriveAppFolder,
+			MimeType: "application/vnd.google-apps.folder",
+		}
+
+		finfo, err := srv.Files.Create(f).Do()
+		if err != nil {
+			return nil, fmt.Errorf("couldn't create app directory on gdrive: %v", err)
+		}
+
+		folder = finfo.Id
+	}
+
+	drv.rootFolderID = folder
+
+	return drv, nil
 }
 
 func (g *GDrive) GetProviderName() string {
@@ -37,8 +61,12 @@ func (g *GDrive) GetProviderName() string {
 
 func (g *GDrive) GetFile(name string) (io.ReadCloser, error) {
 	id, err := g.getFileId(name)
-	if err != nil {
+	if err != nil && err != common.ErrNotFound {
 		return nil, fmt.Errorf("couldn't retrieve file id: %v", err)
+	}
+
+	if err == common.ErrNotFound {
+		return nil, err
 	}
 
 	res, err := g.srv.Files.Get(id).Download()
@@ -50,8 +78,20 @@ func (g *GDrive) GetFile(name string) (io.ReadCloser, error) {
 }
 
 func (g *GDrive) PutFile(name string, content io.Reader) error {
+	id, err := g.getFileId(name)
+	if err != nil && err != common.ErrNotFound {
+		return fmt.Errorf("couldn't retrieve file id: %v", err)
+	}
+
+	if err != common.ErrNotFound {
+		if err := g.srv.Files.Delete(id).Do(); err != nil {
+			return fmt.Errorf("couldn't delete file %s for replacement: %v", name, err)
+		}
+	}
+
 	f := &drive.File{
-		Name: name,
+		Name:    name,
+		Parents: []string{g.rootFolderID},
 	}
 
 	// @todo: check specific errors - not all errors are errors
@@ -64,8 +104,12 @@ func (g *GDrive) PutFile(name string, content io.Reader) error {
 
 func (g *GDrive) GetFileMetadata(name string) (*Metadata, error) {
 	id, err := g.getFileId(name)
-	if err != nil {
+	if err != nil && err != common.ErrNotFound {
 		return nil, fmt.Errorf("couldn't retrieve file id: %v", err)
+	}
+
+	if err == common.ErrNotFound {
+		return nil, err
 	}
 
 	md, err := g.srv.Files.Get(id).Do()
@@ -83,8 +127,12 @@ func (g *GDrive) GetFileMetadata(name string) (*Metadata, error) {
 
 func (g *GDrive) DeleteFile(name string) error {
 	id, err := g.getFileId(name)
-	if err != nil {
+	if err != nil && err != common.ErrNotFound {
 		return fmt.Errorf("couldn't retrieve file id: %v", err)
+	}
+
+	if err == common.ErrNotFound {
+		return err
 	}
 
 	if err := g.srv.Files.Delete(id).Do(); err != nil {
@@ -116,12 +164,16 @@ func (g *GDrive) GetAvailableSpace() (int64, error) {
 
 func (g *GDrive) getFileId(name string) (string, error) {
 	res, err := g.srv.Files.List().PageSize(10).
-		Q(fmt.Sprintf("name='%s'", name)).Fields("files(id, name)").Do()
+		Q(fmt.Sprintf("name='%s' and trashed=false", name)).Fields("files(id, name)").Do()
 	if err != nil {
 		return "", fmt.Errorf("couldn't query file %s: %v", name, err)
 	}
 
-	if len(res.Files) != 1 {
+	if len(res.Files) == 0 {
+		return "", common.ErrNotFound
+	}
+
+	if len(res.Files) > 1 {
 		return "", fmt.Errorf("unexpected number of files on gdrive %d", len(res.Files))
 	}
 

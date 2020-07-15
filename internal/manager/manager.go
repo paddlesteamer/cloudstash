@@ -27,20 +27,42 @@ type Manager struct {
 
 // NewManager creates a new Manager struct with provided
 // parameters and starts background processes
-func NewManager(drives []drive.Drive, db *database, cipher *crypto.Crypto, key string) *Manager {
+func NewManager(drives []drive.Drive, dbDrv drive.Drive, cipher *crypto.Crypto, key string) (*Manager, error) {
 	m := &Manager{
 		drives:  drives,
-		db:      db,
 		key:     key,
 		cache:   newCache(),
 		tracker: newTracker(),
 		cipher:  cipher,
 	}
 
+	var db *database
+
+	// DB doesn't exist
+	if dbDrv == nil {
+		drv := m.selectDrive()
+
+		d, err := newDB(drv, cipher)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't intialize DB: %v", err)
+		}
+
+		db = d
+	} else {
+		d, err := fetchDB(dbDrv, cipher)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't fetch DB: %v", err)
+		}
+
+		db = d
+	}
+
+	m.db = db
+
 	go watchRemoteChanges(m)
 	go processLocalChanges(m)
 
-	return m
+	return m, nil
 }
 
 // Close cleanups cached files and process remaining file changes
@@ -56,7 +78,7 @@ func (m *Manager) Lookup(parent int64, name string) (*sqlite.Metadata, error) {
 	m.db.rLock()
 	defer m.db.rUnlock()
 
-	db, err := sqlite.NewClient()
+	db, err := m.getSqliteClient()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -79,7 +101,7 @@ func (m *Manager) GetMetadata(inode int64) (*sqlite.Metadata, error) {
 	m.db.rLock()
 	defer m.db.rUnlock()
 
-	db, err := sqlite.NewClient()
+	db, err := m.getSqliteClient()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -122,7 +144,7 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 		return fmt.Errorf("couldn't get file stats %s: %v", path, err)
 	}
 
-	db, err := sqlite.NewClient()
+	db, err := m.getSqliteClient()
 	if err != nil {
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -158,7 +180,7 @@ func (m *Manager) UpdateMetadata(md *sqlite.Metadata) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	db, err := sqlite.NewClient()
+	db, err := m.getSqliteClient()
 	if err != nil {
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -180,7 +202,7 @@ func (m *Manager) GetDirectoryContent(parent int64) ([]sqlite.Metadata, error) {
 	m.db.rLock()
 	defer m.db.rUnlock()
 
-	db, err := sqlite.NewClient()
+	db, err := m.getSqliteClient()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -195,7 +217,7 @@ func (m *Manager) GetDirectoryContent(parent int64) ([]sqlite.Metadata, error) {
 		return nil, fmt.Errorf("something went wrong with query: %v", err)
 	}
 
-	if md.Type != common.DRV_FOLDER {
+	if md.Type != common.DrvFolder {
 		return nil, fmt.Errorf("the requested inode is not a directory: %d", md.Type)
 	}
 
@@ -213,7 +235,7 @@ func (m *Manager) RemoveDirectory(ino int64) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	db, err := sqlite.NewClient()
+	db, err := m.getSqliteClient()
 	if err != nil {
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -247,7 +269,7 @@ func (m *Manager) RemoveFile(md *sqlite.Metadata) error {
 
 	go m.deleteRemoteFile(md)
 
-	db, err := sqlite.NewClient()
+	db, err := m.getSqliteClient()
 	if err != nil {
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -307,7 +329,7 @@ func (m *Manager) AddDirectory(parent int64, name string, mode int) (*sqlite.Met
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	db, err := sqlite.NewClient()
+	db, err := m.getSqliteClient()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -327,7 +349,7 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*sqlite.Metad
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	db, err := sqlite.NewClient()
+	db, err := m.getSqliteClient()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to database: %v", err)
 	}
@@ -355,6 +377,10 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*sqlite.Metad
 	m.cache.Set(common.ToString(md.Inode), newCacheEntry(tmpfile.Name(), fileAvailable, checksum), cacheExpiration)
 
 	return md, nil
+}
+
+func (m *Manager) getSqliteClient() (*sqlite.Client, error) {
+	return sqlite.NewClient(m.db.path)
 }
 
 // getDriveClient returns drive driver of the provided scheme
@@ -456,7 +482,7 @@ func (m *Manager) notifyChangeInFile(cachePath string, remotePath string) {
 func (m *Manager) notifyChangeInDatabase() {
 	m.tracker.Set(m.db.path, trackerEntry{
 		cachePath:  m.db.path,
-		remotePath: drive.GetURL(m.db.extDrive, m.db.extPath),
+		remotePath: drive.GetURL(m.db.extDrive, common.DatabaseFileName),
 		accessTime: time.Now(),
 	}, cacheForever)
 }

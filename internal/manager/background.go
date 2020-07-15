@@ -9,7 +9,6 @@ import (
 
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
-	"github.com/paddlesteamer/cloudstash/internal/sqlite"
 	"github.com/paddlesteamer/go-cache"
 )
 
@@ -30,7 +29,7 @@ func watchRemoteChanges(m *Manager) {
 // checkChanges checks whether the remote database file is changed
 // and updates local database file if necessary
 func checkChanges(m *Manager) bool {
-	mdata, err := m.db.extDrive.GetFileMetadata(m.db.extPath)
+	mdata, err := m.db.extDrive.GetFileMetadata(common.DatabaseFileName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return false
@@ -43,7 +42,7 @@ func checkChanges(m *Manager) bool {
 		return false
 	}
 
-	reader, err := m.db.extDrive.GetFile(m.db.extPath)
+	reader, err := m.db.extDrive.GetFile(common.DatabaseFileName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't get updated db file: %v\n", err)
 
@@ -84,7 +83,7 @@ func updateCache(m *Manager) {
 	m.db.rLock()
 	defer m.db.rUnlock()
 
-	db, err := sqlite.NewClient()
+	db, err := m.getSqliteClient()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't connect to database: %v\n", err)
 

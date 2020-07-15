@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -15,7 +14,6 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/drive"
 	"github.com/paddlesteamer/cloudstash/internal/fs"
 	"github.com/paddlesteamer/cloudstash/internal/manager"
-	"github.com/paddlesteamer/cloudstash/internal/sqlite"
 	"github.com/paddlesteamer/go-fuse-c/fuse"
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -35,32 +33,22 @@ func main() {
 	}
 	log.Printf("mount point: %s\n", cfg.MountPoint)
 
-	dbURL, err := common.ParseURL(common.DATABASE_FILE)
-	if err != nil {
-		log.Fatalf("could not parse DB file URL: %v", err)
-	}
-
 	drives, err := collectDrives(cfg)
 	if err != nil {
 		log.Fatalf("couldn't collect drives: %v", err)
 	}
 
-	idx, err := findMatchingDriveIdx(dbURL, drives)
-	if err != nil {
-		log.Fatalf("could not match DB file to any of the available drives: %v", err)
+	dbDrv, err := findDBDrive(drives)
+	if err != nil && err != common.ErrNotFound {
+		log.Fatalf("couldn't search for db file: %v", err)
 	}
 
 	cipher := crypto.NewCrypto(cfg.EncryptionKey)
 
-	dbPath, hash, err := initOrImportDB(drives[idx], dbURL.Name, cipher)
+	m, err := manager.NewManager(drives, dbDrv, cipher, cfg.EncryptionKey)
 	if err != nil {
-		log.Fatalf("could not initialize or import an existing DB file: %v", err)
+		log.Fatalf("couldn't initialize manager: %v", err)
 	}
-
-	db := manager.NewDB(dbPath, dbURL.Name, hash, drives[idx])
-	defer db.Close()
-
-	m := manager.NewManager(drives, db, cipher, cfg.EncryptionKey)
 	defer m.Close()
 
 	// unmount when SIGINT, SIGTERM or SIGQUIT is received
@@ -81,6 +69,7 @@ func parseFlags() (cfgDir, mntDir string) {
 	flag.StringVar(&cfgDir, "c", "", "Application config directory, optional.")
 	flag.StringVar(&mntDir, "m", "", "Application mount directory, optional.")
 	flag.Parse()
+
 	return cfgDir, mntDir
 }
 
@@ -94,6 +83,7 @@ func configure(cfgDir, mntDir string) (cfg *config.Cfg, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not read encryption secret from terminal")
 	}
+
 	return config.NewConfig(cfgDir, mntDir, secret)
 }
 
@@ -111,92 +101,28 @@ func collectDrives(cfg *config.Cfg) ([]drive.Drive, error) {
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create gdrive client: %v", err)
 		}
+
 		drives = append(drives, gdrive)
 	}
 
 	return drives, nil
 }
 
-// findMatchingDrive returns the drive from the given list that matches the DB file scheme.
-func findMatchingDriveIdx(url *common.FileURL, drives []drive.Drive) (idx int, err error) {
-	for i, d := range drives {
-		if d.GetProviderName() == url.Scheme {
-			return i, nil
-		}
-	}
-
-	return -1, fmt.Errorf("could not find a drive matching database file scheme")
-}
-
-func initAndUploadDB(drv drive.Drive, dbPath, dbExtPath string, cipher *crypto.Crypto) (string, error) {
-	if err := sqlite.InitDB(dbPath); err != nil {
-		return "", fmt.Errorf("could not initialize DB: %v", err)
-	}
-
-	dbFile, err := os.Open(dbPath)
-	if err != nil {
-		os.Remove(dbPath)
-		return "", fmt.Errorf("could not open intitialized DB: %v", err)
-	}
-	defer dbFile.Close()
-
-	hs := crypto.NewHashStream(drv)
-
-	err = drv.PutFile(dbExtPath, hs.NewHashReader(cipher.NewEncryptReader(dbFile)))
-	if err != nil {
-		os.Remove(dbPath)
-		return "", fmt.Errorf("could not upload initialized DB: %v", err)
-	}
-
-	hash, err := hs.GetComputedHash()
-	if err != nil {
-		os.Remove(dbPath)
-		return "", fmt.Errorf("couldn't compute hash of newly installed DB: %v", err)
-	}
-
-	return hash, nil
-}
-
-func initOrImportDB(drv drive.Drive, extPath string, cipher *crypto.Crypto) (string, string, error) {
-	file, err := common.NewTempDBFile()
-	if err != nil {
-		return "", "", fmt.Errorf("could not create DB file: %v", err)
-	}
-	defer file.Close()
-
-	reader, err := drv.GetFile(extPath)
-
-	if err != nil {
-		if err == common.ErrNotFound {
-			file.Close() // should be closed before initialization
-
-			hash, err := initAndUploadDB(drv, file.Name(), extPath, cipher)
-			if err != nil {
-				return "", "", fmt.Errorf("could not initialize DB: %v", err)
+// findDBDrive searches for database file in drives and returns it if found
+// returns common.ErrNotFound if not found
+func findDBDrive(drives []drive.Drive) (drive.Drive, error) {
+	for _, drv := range drives {
+		if _, err := drv.GetFileMetadata(common.DatabaseFileName); err != nil {
+			if err == common.ErrNotFound {
+				continue
 			}
 
-			return file.Name(), hash, nil
+			return nil, fmt.Errorf("couldn't get database file metadata from %s: %v",
+				drv.GetProviderName(), err)
 		}
 
-		return "", "", fmt.Errorf("could not get file: %v", err)
-	}
-	defer reader.Close()
-
-	hs := crypto.NewHashStream(drv)
-
-	_, err = io.Copy(file, cipher.NewDecryptReader(hs.NewHashReader(reader)))
-	if err != nil {
-		os.Remove(file.Name())
-		return "", "", fmt.Errorf("could not copy contents of DB to local file: %v", err)
+		return drv, nil
 	}
 
-	hash, err := hs.GetComputedHash()
-	if err != nil {
-		os.Remove(file.Name())
-		return "", "", fmt.Errorf("couldn't compute hash of database file: %v", err)
-	}
-
-	sqlite.SetPath(file.Name())
-
-	return file.Name(), hash, nil
+	return nil, common.ErrNotFound
 }

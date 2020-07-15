@@ -61,12 +61,12 @@ func ReadConfig(dir string) (*Cfg, error) {
 }
 
 func NewConfig(cfgDir, mntDir string, secret []byte) (cfg *Cfg, err error) {
-	dbxToken, err := dropbox.GetToken(common.DROPBOX_APP_KEY)
+	dbxToken, err := dropbox.GetToken(common.DropboxAppKey)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get dropbox access token: %v", err)
 	}
 
-	gdrvCfg, _ := google.ConfigFromJSON([]byte(common.GDRIVE_CREDENTIALS), drive.DriveFileScope)
+	gdrvCfg, _ := google.ConfigFromJSON([]byte(common.GDriveCredentials), drive.DriveFileScope)
 
 	gdrvToken, err := gdrive.GetToken(gdrvCfg)
 	if err != nil {

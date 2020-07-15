@@ -1,33 +1,103 @@
 package manager
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"sync"
 
+	"github.com/paddlesteamer/cloudstash/internal/common"
+	"github.com/paddlesteamer/cloudstash/internal/crypto"
 	"github.com/paddlesteamer/cloudstash/internal/drive"
+	"github.com/paddlesteamer/cloudstash/internal/sqlite"
 )
 
 type database struct {
 	path     string       // local path of database
-	extPath  string       // remote path of database (i.e. dropbox://cloudstash.sqlite3)
 	hash     string       // content hash of database computed by extDrive.ComputeHash
-	extDrive drive.Drive  // driver for remote operations
+	extDrive drive.Drive  // drive client for remote operations
 	mux      sync.RWMutex // used in database queries, executions since go-sqlite3 isn't thread safe
 }
 
-// NewDB creates new database with provided parameters
-func NewDB(path, extPath, hash string, extDrive drive.Drive) *database {
+// newDB creates new database and uploads it
+func newDB(extDrive drive.Drive, cipher *crypto.Crypto) (*database, error) {
+	file, err := common.NewTempDBFile()
+	if err != nil {
+		return nil, fmt.Errorf("could not create DB file: %v", err)
+	}
+	file.Close()
+
+	if err := sqlite.InitDB(file.Name()); err != nil {
+		return nil, fmt.Errorf("could not initialize DB: %v", err)
+	}
+
+	// reopen file
+	file, err = os.Open(file.Name())
+	if err != nil {
+		os.Remove(file.Name())
+		return nil, fmt.Errorf("could not open intitialized DB: %v", err)
+	}
+	defer file.Close()
+
+	hs := crypto.NewHashStream(extDrive)
+
+	err = extDrive.PutFile(common.DatabaseFileName, hs.NewHashReader(cipher.NewEncryptReader(file)))
+	if err != nil {
+		os.Remove(file.Name())
+		return nil, fmt.Errorf("could not upload initialized DB: %v", err)
+	}
+
+	hash, err := hs.GetComputedHash()
+	if err != nil {
+		os.Remove(file.Name())
+		return nil, fmt.Errorf("couldn't compute hash of newly installed DB: %v", err)
+	}
+
 	return &database{
-		path:     path,
-		extPath:  extPath,
+		path:     file.Name(),
 		hash:     hash,
 		extDrive: extDrive,
-	}
+	}, nil
 }
 
-// Close deletes database file from local filesystem
+// fetchDB fetches database from remote storage
+func fetchDB(extDrive drive.Drive, cipher *crypto.Crypto) (*database, error) {
+	file, err := common.NewTempDBFile()
+	if err != nil {
+		return nil, fmt.Errorf("could not create DB file: %v", err)
+	}
+	defer file.Close()
+
+	reader, err := extDrive.GetFile(common.DatabaseFileName)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get database file: %v", err)
+	}
+	defer reader.Close()
+
+	hs := crypto.NewHashStream(extDrive)
+
+	_, err = io.Copy(file, cipher.NewDecryptReader(hs.NewHashReader(reader)))
+	if err != nil {
+		os.Remove(file.Name())
+		return nil, fmt.Errorf("could not copy contents of DB to local file: %v", err)
+	}
+
+	hash, err := hs.GetComputedHash()
+	if err != nil {
+		os.Remove(file.Name())
+		return nil, fmt.Errorf("couldn't compute hash of database file: %v", err)
+	}
+
+	return &database{
+		path:     file.Name(),
+		hash:     hash,
+		extDrive: extDrive,
+	}, nil
+}
+
+// close deletes database file from local filesystem
 // It should be called on exit
-func (db *database) Close() {
+func (db *database) close() {
 	os.Remove(db.path)
 }
 

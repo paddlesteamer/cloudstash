@@ -78,7 +78,7 @@ func (fs *CloudStashFs) Lookup(parent int64, name string) (*fuse.Entry, fuse.Sta
 		return nil, fuse.EIO
 	}
 
-	if parentmd.Type != common.DRV_FOLDER {
+	if parentmd.Type != common.DrvFolder {
 		return nil, fuse.ENOTDIR
 	}
 
@@ -114,7 +114,7 @@ func (fs *CloudStashFs) ReadDir(ino int64, fi *fuse.FileInfo, off int64, size in
 		return fuse.EIO
 	}
 
-	if dirmd.Type != common.DRV_FOLDER {
+	if dirmd.Type != common.DrvFolder {
 		return fuse.ENOTDIR
 	}
 
@@ -178,7 +178,7 @@ func (fs *CloudStashFs) Rmdir(parent int64, name string) fuse.Status {
 		return fuse.EIO
 	}
 
-	if parentmd.Type != common.DRV_FOLDER {
+	if parentmd.Type != common.DrvFolder {
 		return fuse.ENOTDIR
 	}
 
@@ -233,7 +233,7 @@ func (fs *CloudStashFs) Open(ino int64, fi *fuse.FileInfo) fuse.Status {
 		return fuse.EIO
 	}
 
-	if md.Type == common.DRV_FOLDER {
+	if md.Type == common.DrvFolder {
 		return fuse.EISDIR
 	}
 
@@ -253,7 +253,7 @@ func (fs *CloudStashFs) OpenDir(ino int64, fi *fuse.FileInfo) fuse.Status {
 		return fuse.EIO
 	}
 
-	if md.Type != common.DRV_FOLDER {
+	if md.Type != common.DrvFolder {
 		return fuse.ENOTDIR
 	}
 
@@ -383,7 +383,7 @@ func (fs *CloudStashFs) Unlink(parent int64, name string) fuse.Status {
 		return fuse.EIO
 	}
 
-	if parentmd.Type != common.DRV_FOLDER {
+	if parentmd.Type != common.DrvFolder {
 		return fuse.ENOTDIR
 	}
 
@@ -429,7 +429,7 @@ func (fs *CloudStashFs) Rename(oparent int64, oname string, tparent int64, tname
 		return fuse.EIO
 	}
 
-	if oparentmd.Type != common.DRV_FOLDER || tparentmd.Type != common.DRV_FOLDER {
+	if oparentmd.Type != common.DrvFolder || tparentmd.Type != common.DrvFolder {
 		return fuse.ENOTDIR
 	}
 
@@ -461,7 +461,7 @@ func newInode(md *sqlite.Metadata) *fuse.InoAttr {
 		Timeout: 1.0,
 	}
 
-	if md.Type == common.DRV_FOLDER {
+	if md.Type == common.DrvFolder {
 		inode.Mode = fuse.S_IFDIR | md.Mode
 	} else {
 		inode.Mode = fuse.S_IFREG | md.Mode
