@@ -6,6 +6,7 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -28,9 +29,16 @@ type Crypto struct {
 	key []byte
 }
 
+func DeriveKey(key []byte) string {
+	derived := pbkdf2.Key(key, salt, iterationCount, keyLength, sha256.New)
+
+	return fmt.Sprintf("%x", derived)
+}
+
 func NewCrypto(key string) *Crypto {
-	derived := pbkdf2.Key([]byte(key), salt, iterationCount, keyLength, sha256.New)
-	return &Crypto{derived}
+	decoded, _ := hex.DecodeString(key)
+
+	return &Crypto{decoded}
 }
 
 func (c *Crypto) NewEncryptReader(r io.Reader) io.Reader {

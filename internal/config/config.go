@@ -60,7 +60,7 @@ func ReadConfig(dir string) (*Cfg, error) {
 	return &cfg, nil
 }
 
-func NewConfig(cfgDir, mntDir string, secret []byte) (cfg *Cfg, err error) {
+func NewConfig(cfgDir, mntDir string, secret string) (cfg *Cfg, err error) {
 	dbxToken, err := dropbox.GetToken(common.DropboxAppKey)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get dropbox access token: %v", err)
@@ -74,7 +74,7 @@ func NewConfig(cfgDir, mntDir string, secret []byte) (cfg *Cfg, err error) {
 	}
 
 	cfg = &Cfg{
-		EncryptionKey: string(secret),
+		EncryptionKey: secret,
 		MountPoint:    getMountPoint(mntDir),
 		Dropbox:       &DropboxCredentials{dbxToken},
 		GDrive:        gdrvToken,
