@@ -84,7 +84,7 @@ func configure(cfgDir, mntDir string) (cfg *config.Cfg, err error) {
 		return nil, fmt.Errorf("could not read encryption secret from terminal")
 	}
 
-	return config.NewConfig(cfgDir, mntDir, secret)
+	return config.NewConfig(cfgDir, mntDir, crypto.DeriveKey(secret))
 }
 
 // collectDrives returns a slice of clients for each enabled drive.
