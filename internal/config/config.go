@@ -112,6 +112,7 @@ func writeConfig(dir string, cfg *Cfg) error {
 func getConfigPath(dir string) string {
 	if dir != "" {
 		dir = strings.TrimRight(dir, "/")
+
 		return fmt.Sprintf("%s/%s", dir, cfgFile)
 	}
 
