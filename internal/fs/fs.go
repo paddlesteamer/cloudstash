@@ -308,7 +308,7 @@ func (fs *CloudStashFs) Flush(ino int64, fi *fuse.FileInfo) fuse.Status {
 	fmt.Printf("flush ino: %d\n", ino)
 
 	if err := fs.manager.UpdateMetadataFromCache(ino); err != nil {
-		fmt.Fprintf(os.Stderr, "file is written but couldn't update metadata in db: %v", err)
+		fmt.Fprintf(os.Stderr, "flush called on file but couldn't update metadata in db: %v", err)
 		return fuse.EIO
 	}
 

@@ -137,28 +137,33 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 
 	file, err := os.Open(path)
 	if err != nil {
+		m.cache.Delete(common.ToString(inode))
 		return fmt.Errorf("couldn't open file %s: %v", path, err)
 	}
 	defer file.Close()
 
 	fi, err := file.Stat()
 	if err != nil {
+		m.cache.Delete(common.ToString(inode))
 		return fmt.Errorf("couldn't get file stats %s: %v", path, err)
 	}
 
 	db, err := m.getSqliteClient()
 	if err != nil {
+		m.cache.Delete(common.ToString(inode))
 		return fmt.Errorf("couldn't connect to database: %v", err)
 	}
 	defer db.Close()
 
 	md, err := db.Get(inode)
 	if err != nil {
+		m.cache.Delete(common.ToString(inode))
 		return fmt.Errorf("couldn't get file: %v", err)
 	}
 
 	checksum, err := crypto.MD5Checksum(file)
 	if err != nil {
+		m.cache.Delete(common.ToString(inode))
 		return fmt.Errorf("couldn't compute md5 checksum: %v", err)
 	}
 
@@ -167,6 +172,7 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 		md.Hash = checksum
 		err = db.Update(md)
 		if err != nil {
+			m.cache.Delete(common.ToString(inode))
 			return fmt.Errorf("couldn't update file metadata: %v", err)
 		}
 
@@ -320,6 +326,7 @@ func (m *Manager) OpenFile(md *sqlite.Metadata, flag int) (*os.File, error) {
 
 	file, err := os.OpenFile(path, flag, 0600)
 	if err != nil {
+		m.cache.Delete(common.ToString(md.Inode))
 		return nil, fmt.Errorf("couldn't open file %s: %v", path, err)
 	}
 
