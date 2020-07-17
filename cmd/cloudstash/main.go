@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,38 +15,48 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/manager"
 	"github.com/paddlesteamer/go-fuse-c/fuse"
 	"golang.org/x/crypto/ssh/terminal"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
+	log.SetLevel(log.DebugLevel)
+
 	cfgDir, mntDir := parseFlags()
 
 	// read existing or create new configuration file
 	cfg, err := configure(cfgDir, mntDir)
 	if err != nil {
-		log.Fatalf("configuration error: %v", err)
+		log.Errorf("configuration error: %v", err)
+		return
 	}
 
 	// create mount directory
 	if err := os.MkdirAll(cfg.MountPoint, 0755); err != nil {
-		log.Fatalf("could not create mount directory: %v", err)
+		log.Errorf("could not create mount directory: %v", err)
+		return
 	}
-	log.Printf("mount point: %s\n", cfg.MountPoint)
+
+	log.Infof("mount point: %s", cfg.MountPoint)
 
 	drives, err := collectDrives(cfg)
 	if err != nil {
-		log.Fatalf("couldn't collect drives: %v", err)
+		log.Errorf("couldn't collect drives: %v", err)
+		return
 	}
 
 	dbDrv, err := findDBDrive(drives)
 	if err != nil && err != common.ErrNotFound {
-		log.Fatalf("couldn't search for db file: %v", err)
+		log.Errorf("couldn't search for db file: %v", err)
+		return
 	}
 
 	cipher := crypto.NewCipher(cfg.EncryptionKey)
 
 	m, err := manager.NewManager(drives, dbDrv, cipher, cfg.EncryptionKey)
 	if err != nil {
-		log.Fatalf("couldn't initialize manager: %v", err)
+		log.Errorf("couldn't initialize manager: %v", err)
+		return
 	}
 	defer m.Clean()
 

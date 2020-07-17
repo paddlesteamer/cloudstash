@@ -10,6 +10,8 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
 	"github.com/paddlesteamer/cloudstash/internal/drive"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type database struct {
@@ -34,7 +36,10 @@ func newDB(extDrive drive.Drive, cipher *crypto.Cipher) (*database, error) {
 	// reopen file
 	file, err = os.Open(file.Name())
 	if err != nil {
-		os.Remove(file.Name())
+		if err := os.Remove(file.Name()); err != nil {
+			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
+		}
+
 		return nil, fmt.Errorf("could not open intitialized DB: %v", err)
 	}
 	defer file.Close()
@@ -43,13 +48,19 @@ func newDB(extDrive drive.Drive, cipher *crypto.Cipher) (*database, error) {
 
 	err = extDrive.PutFile(common.DatabaseFileName, hs.NewHashReader(cipher.NewEncryptReader(file)))
 	if err != nil {
-		os.Remove(file.Name())
+		if err := os.Remove(file.Name()); err != nil {
+			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
+		}
+
 		return nil, fmt.Errorf("could not upload initialized DB: %v", err)
 	}
 
 	hash, err := hs.GetComputedHash()
 	if err != nil {
-		os.Remove(file.Name())
+		if err := os.Remove(file.Name()); err != nil {
+			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
+		}
+
 		return nil, fmt.Errorf("couldn't compute hash of newly installed DB: %v", err)
 	}
 
@@ -77,13 +88,19 @@ func fetchDB(extDrive drive.Drive, cipher *crypto.Cipher) (*database, error) {
 
 	_, err = io.Copy(file, cipher.NewDecryptReader(hs.NewHashReader(reader)))
 	if err != nil {
-		os.Remove(file.Name())
+		if err := os.Remove(file.Name()); err != nil {
+			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
+		}
+
 		return nil, fmt.Errorf("could not copy contents of DB to local file: %v", err)
 	}
 
 	hash, err := hs.GetComputedHash()
 	if err != nil {
-		os.Remove(file.Name())
+		if err := os.Remove(file.Name()); err != nil {
+			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
+		}
+
 		return nil, fmt.Errorf("couldn't compute hash of database file: %v", err)
 	}
 
@@ -91,13 +108,19 @@ func fetchDB(extDrive drive.Drive, cipher *crypto.Cipher) (*database, error) {
 
 	db, err := sqlite.NewClient(file.Name())
 	if err != nil {
-		os.Remove(file.Name())
+		if err := os.Remove(file.Name()); err != nil {
+			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
+		}
+
 		return nil, fmt.Errorf("couldn't connect to downloaded DB file: %v", err)
 	}
 	defer db.Close()
 
 	if !db.IsValidDatabase() {
-		os.Remove(file.Name())
+		if err := os.Remove(file.Name()); err != nil {
+			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
+		}
+
 		return nil, fmt.Errorf("couldn't verify the downloaded database file")
 	}
 
@@ -111,7 +134,9 @@ func fetchDB(extDrive drive.Drive, cipher *crypto.Cipher) (*database, error) {
 // clean deletes database file from local filesystem
 // It should be called on exit
 func (db *database) clean() {
-	os.Remove(db.path)
+	if err := os.Remove(db.path); err != nil {
+		log.Warningf("couldn't remove file '%s' from filesystem: %v", db.path, err)
+	}
 }
 
 func (db *database) wLock() {

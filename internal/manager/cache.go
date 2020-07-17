@@ -1,11 +1,12 @@
 package manager
 
 import (
-	"fmt"
 	"os"
 	"time"
 
 	"github.com/paddlesteamer/go-cache"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -42,9 +43,8 @@ func newCache() *cache.Cache {
 func expirationHandler(ino string, ent interface{}) {
 	entry := ent.(cacheEntry)
 
-	err := os.Remove(entry.path)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't delete cached file %s: %v", entry.path, err)
+	if err := os.Remove(entry.path); err != nil {
+		log.Warningf("couldn't delete cached file %s: %v", entry.path, err)
 	}
 }
 
