@@ -4,10 +4,14 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/paddlesteamer/cloudstash/internal/common"
+
+	// sqlite3 driver
+	_ "github.com/mattn/go-sqlite3"
 )
 
+// Client is created when a new connection to the database is established
+// Use NewClient() to create
 type Client struct {
 	db *sql.DB
 }
@@ -81,6 +85,7 @@ func (c *Client) IsValidDatabase() bool {
 	return true
 }
 
+// Search looks for file with specified name under specified inode
 func (c *Client) Search(parent int64, name string) (*Metadata, error) {
 	query, err := c.db.Prepare("SELECT * FROM files WHERE name=? and parent=?")
 	if err != nil {
@@ -100,6 +105,7 @@ func (c *Client) Search(parent int64, name string) (*Metadata, error) {
 	return c.parseRow(row)
 }
 
+// Get returns file metadata with specified inode
 func (c *Client) Get(inode int64) (*Metadata, error) {
 	query, err := c.db.Prepare("SELECT * FROM files WHERE inode=?")
 	if err != nil {
@@ -129,6 +135,7 @@ func (c *Client) Get(inode int64) (*Metadata, error) {
 	return md, nil
 }
 
+// Delete removes file with specified inode from database
 func (c *Client) Delete(inode int64) error {
 	query, err := c.db.Prepare("DELETE FROM files WHERE inode=?")
 	if err != nil {
@@ -143,6 +150,7 @@ func (c *Client) Delete(inode int64) error {
 	return nil
 }
 
+// GetChildren returns files under the folder with specified inode
 func (c *Client) GetChildren(parent int64) ([]Metadata, error) {
 	query, err := c.db.Prepare("SELECT * FROM files WHERE parent=?")
 	if err != nil {
@@ -173,20 +181,7 @@ func (c *Client) GetChildren(parent int64) ([]Metadata, error) {
 	return mdList, nil
 }
 
-func (c *Client) DeleteChildren(parent int64) error {
-	query, err := c.db.Prepare("DELETE FROM files WHERE parent=?")
-	if err != nil {
-		return fmt.Errorf("couldn't prepare statement: %v", err)
-	}
-
-	_, err = query.Exec(parent)
-	if err != nil {
-		return fmt.Errorf("couldn't delete children: %v", err)
-	}
-
-	return nil
-}
-
+// AddDirectory insert row with type folder into the database
 func (c *Client) AddDirectory(parent int64, name string, mode int) (*Metadata, error) {
 	query, err := c.db.Prepare("INSERT INTO files(name, mode, parent, type) VALUES(?, ?, ?, ?)")
 	if err != nil {
@@ -223,6 +218,7 @@ func (c *Client) AddDirectory(parent int64, name string, mode int) (*Metadata, e
 	return md, nil
 }
 
+// CreateFile insert row with type file into the database
 func (c *Client) CreateFile(parent int64, name string, mode int, url string, hash string) (*Metadata, error) {
 	query, err := c.db.Prepare("INSERT INTO files(name, url, size, mode, parent, type, hash) VALUES(?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
@@ -259,6 +255,7 @@ func (c *Client) CreateFile(parent int64, name string, mode int, url string, has
 	return md, nil
 }
 
+// Update updates related row with new metadata
 func (c *Client) Update(md *Metadata) error {
 	query, err := c.db.Prepare("UPDATE files SET name=?, url=?, size=?, mode=?, parent=?, type=?, hash=? WHERE inode=?")
 	if err != nil {
@@ -273,6 +270,38 @@ func (c *Client) Update(md *Metadata) error {
 	return nil
 }
 
+// GetRows returns rows starting from specified offset with specified limit
+func (c *Client) GetRows(limit int, offset int) ([]Metadata, error) {
+	query, err := c.db.Prepare("SELECT * FROM files LIMIT ? OFFSET ?")
+	if err != nil {
+		return nil, fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	row, err := query.Query()
+	if err != nil {
+		return nil, fmt.Errorf("there is an error in query: %v", err)
+	}
+	defer row.Close()
+
+	mdList := []Metadata{}
+	for row.Next() {
+		md, err := c.parseRow(row)
+		if err != nil {
+			return nil, err
+		}
+
+		err = c.fillNLink(md)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't get nlink count: %v", err)
+		}
+
+		mdList = append(mdList, *md)
+	}
+
+	return mdList, nil
+}
+
+// GetRowCount returns total number of rows
 func (c *Client) GetRowCount() (int, error) {
 	query, err := c.db.Prepare("SELECT count(*) FROM files")
 	if err != nil {
@@ -285,7 +314,7 @@ func (c *Client) GetRowCount() (int, error) {
 	}
 	defer row.Close()
 
-	var count int64
+	var count int
 
 	row.Next() // no need to check return value
 

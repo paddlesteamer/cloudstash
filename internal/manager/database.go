@@ -145,6 +145,7 @@ func (db *database) clean() {
 // - if a file is changed or relocated on remote database, the changes are ignored
 // - if a file is removed from remote database, it is added again
 // - if a new file is added to remote database, it is added to local database too
+// - remote database's inode numbers are used in local db in order to get synchronized with other clients
 func (db *database) merge(path string) error {
 	// backup local copy just in case
 	backup, err := db.backupDatabase()
@@ -178,33 +179,86 @@ func merge(local *sqlite.Client, remote *sqlite.Client) error {
 	}
 
 	chunkSize := 1000 //rows
-	threadCount := 10
-	rowIdx := 0
-	tIdx := 0
+	threadLimit := 32
 
-	for rowCount > 0 {
-		if rowCount < chunkSize {
-			chunkSize = rowCount
+	offset := 0
+	thCount := 0
+
+	mu := sync.RWMutex{}
+	wg := sync.WaitGroup{}
+	errChan := make(chan error)
+
+	for offset < rowCount {
+		if (rowCount - offset) < chunkSize {
+			chunkSize = rowCount - offset
 		}
 
-		// query
+		mdList, err := remote.GetRows(chunkSize, offset)
+		if err != nil {
+			return fmt.Errorf("couldn't get rows: %v", err)
+		}
 
-		rowCount -= chunkSize
+		offset += chunkSize
 
-		go process(q, remote, lock, wg)
-		tIdx++
+		go processChunk(mdList, local, &wg, &mu, errChan)
 
-		if tIdx == threadCount {
+		thCount++
+
+		// don't start any more go routines if thread limit is reached
+		if thCount == threadLimit {
 			wg.Wait()
-			tIdx = 0
+			thCount = 0
+
+			select {
+			case err := <-errChan:
+				return fmt.Errorf("couldn't process chunks: %v", err)
+			default:
+				// continue
+			}
 		}
 	}
 
-	if tIdx > 0 {
+	if thCount > 0 {
 		wg.Wait()
+
+		select {
+		case err := <-errChan:
+			return fmt.Errorf("couldn't process chunks: %v", err)
+		default:
+			// continue
+		}
 	}
 
 	return nil
+}
+
+func processChunk(mdList []sqlite.Metadata, local *sqlite.Client, wg *sync.WaitGroup, mu *sync.RWMutex, errChan chan error) {
+	wg.Add(1)
+	defer wg.Done()
+
+	for _, md := range mdList {
+		mu.RLock()
+		lmd, err := local.Get(md.Inode)
+		if err != nil && err != common.ErrNotFound {
+			errChan <- fmt.Errorf("couldn't get metadata of inode %d: %v", md.Inode, err)
+			mu.RUnlock()
+
+			return
+		}
+
+		if err == common.ErrNotFound {
+			// force insert with inode
+		}
+
+		if lmd.Name != md.Name && lmd.Parent != md.Parent && lmd.Hash != md.Hash {
+			// assuming it is a complete different file
+			// replace remote row with the local one and
+			// re-insert local row with a new inode
+			// if we don't do this way, the other client's cache may have
+			// wrong files.
+			// it is important to delete this inode from local cache.
+		}
+	}
 }
 
 // backupDatabase creates a copy of current database and returns its path
