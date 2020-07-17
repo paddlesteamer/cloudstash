@@ -273,6 +273,29 @@ func (c *Client) Update(md *Metadata) error {
 	return nil
 }
 
+func (c *Client) GetRowCount() (int, error) {
+	query, err := c.db.Prepare("SELECT count(*) FROM files")
+	if err != nil {
+		return 0, fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	row, err := query.Query()
+	if err != nil {
+		return 0, fmt.Errorf("there is an error in query: %v", err)
+	}
+	defer row.Close()
+
+	var count int64
+
+	row.Next() // no need to check return value
+
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("couldn't get row count: %v", err)
+	}
+
+	return count, nil
+}
+
 func (c *Client) fillNLink(md *Metadata) error {
 	if md.Type == common.DrvFile {
 		md.NLink = 1

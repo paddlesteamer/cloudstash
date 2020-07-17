@@ -139,6 +139,126 @@ func (db *database) clean() {
 	}
 }
 
+// merge tries to merge two databases. returns error if it can not
+// and restores local database.
+// the rules of merge are:
+// - if a file is changed or relocated on remote database, the changes are ignored
+// - if a file is removed from remote database, it is added again
+// - if a new file is added to remote database, it is added to local database too
+func (db *database) merge(path string) error {
+	// backup local copy just in case
+	backup, err := db.backupDatabase()
+	if err != nil {
+		return fmt.Errorf("couldn't get backup of current DB file: %v", err)
+	}
+	defer os.Remove(backup)
+
+	localDb, err := sqlite.NewClient(db.path)
+	if err != nil {
+		return fmt.Errorf("couldn't connect to local DB: %v", err)
+	}
+
+	remoteDb, err := sqlite.NewClient(path)
+	if err != nil {
+		return fmt.Errorf("couldn't connect to local copy of remote DB: %v", err)
+	}
+
+	merge(localDb, remoteDb)
+
+	return nil
+}
+
+func merge(local *sqlite.Client, remote *sqlite.Client) error {
+	defer local.Close()
+	defer remote.Close()
+
+	rowCount, err := remote.GetRowCount()
+	if err != nil {
+		return fmt.Errorf("couldn't get row count: %v", err)
+	}
+
+	chunkSize := 1000 //rows
+	threadCount := 10
+	rowIdx := 0
+	tIdx := 0
+
+	for rowCount > 0 {
+		if rowCount < chunkSize {
+			chunkSize = rowCount
+		}
+
+		// query
+
+		rowCount -= chunkSize
+
+		go process(q, remote, lock, wg)
+		tIdx++
+
+		if tIdx == threadCount {
+			wg.Wait()
+			tIdx = 0
+		}
+	}
+
+	if tIdx > 0 {
+		wg.Wait()
+	}
+
+	return nil
+}
+
+// backupDatabase creates a copy of current database and returns its path
+func (db *database) backupDatabase() (string, error) {
+	dst, err := common.NewTempDBFile()
+	if err != nil {
+		return "", fmt.Errorf("couldn't create backup file: %v", err)
+	}
+	defer dst.Close()
+
+	src, err := os.Open(db.path)
+	if err != nil {
+		dst.Close()
+		if err := os.Remove(dst.Name()); err != nil {
+			log.Warningf("couldn't remove new created backup file '%s': %v", dst.Name(), err)
+		}
+
+		return "", fmt.Errorf("couldn't open current database: %v", err)
+	}
+
+	if _, err := io.Copy(dst, src); err != nil {
+		dst.Close()
+		if err := os.Remove(dst.Name()); err != nil {
+			log.Warningf("couldn't remove new created backup file '%s': %v", dst.Name(), err)
+		}
+
+		return "", fmt.Errorf("couldn't copy current database: %v", err)
+
+	}
+
+	return dst.Name(), nil
+}
+
+// restoreDatabase restores current database from source
+func (db *database) restoreDatabase(source string) error {
+	dst, err := os.Create(db.path)
+	if err != nil {
+		return fmt.Errorf("critical error, couldn't open current database file: %v", err)
+	}
+	defer dst.Close()
+
+	src, err := os.Open(source)
+	if err != nil {
+		return fmt.Errorf("critical error, couldn't open backup file: %v", err)
+	}
+	defer src.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return fmt.Errorf("critical error: couldn't copy contents from backup file: %v", err)
+	}
+
+	return nil
+}
+
 func (db *database) wLock() {
 	db.mux.Lock()
 }

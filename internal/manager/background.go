@@ -219,7 +219,7 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 		if err != nil {
 			log.Errorf("couldn't get metadata of DB file: %v", err)
 
-			// readd to tracker
+			// re-add to tracker
 			m.notifyChangeInDatabase()
 			return
 		}
@@ -228,7 +228,61 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 			// @TODO: try to merge databases first
 			log.Warning("remote DB file is also changed, moving remote file...")
 
-			err := drv.MoveFile(common.DatabaseFileName,
+			remoteDb, err := common.NewTempDBFile()
+			if err != nil {
+				log.Errorf("couldn't create file for remote DB: %v", err)
+
+				// re-add to tracker
+				m.notifyChangeInDatabase()
+				return
+			}
+
+			reader, err := drv.GetFile(common.DatabaseFileName)
+			if err != nil {
+				log.Errorf("couldn't download remote copy of the DB: %v", err)
+
+				remoteDb.Close()
+
+				if err := os.Remove(remoteDb.Name()); err != nil {
+					log.Warningf("couldn't remove DB file '%s': %v", remoteDb.Name(), err)
+				}
+
+				// re-add to tracker
+				m.notifyChangeInDatabase()
+				return
+			}
+			defer reader.Close()
+
+			if _, err := io.Copy(remoteDb, reader); err != nil {
+				log.Errorf("couldn't copy contents of remote DB: %v", err)
+
+				remoteDb.Close()
+
+				if err := os.Remove(remoteDb.Name()); err != nil {
+					log.Warningf("couldn't remove DB file '%s': %v", remoteDb.Name(), err)
+				}
+
+				// re-add to tracker
+				m.notifyChangeInDatabase()
+				return
+			}
+
+			remoteDb.Close()
+
+			if err := m.db.merge(remoteDb.Name()); err != nil {
+				log.Errorf("couldn't merge local DB with the remote one: %v", err)
+
+				if err := os.Remove(remoteDb.Name()); err != nil {
+					log.Warningf("couldn't remove DB file '%s': %v", remoteDb.Name(), err)
+				}
+
+				// re-add to tracker
+				m.notifyChangeInDatabase()
+				return
+			}
+
+			// make a conflicted copy just in case
+			err = drv.MoveFile(common.DatabaseFileName,
 				common.GenerateConflictedFileName(common.DatabaseFileName))
 			if err != nil {
 				// log and ignore
