@@ -1,7 +1,6 @@
 package manager
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -11,6 +10,8 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
 	"github.com/paddlesteamer/go-cache"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -32,7 +33,7 @@ func watchRemoteChanges(m *Manager) {
 func checkChanges(m *Manager) bool {
 	mdata, err := m.db.extDrive.GetFileMetadata(common.DatabaseFileName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't get metadata of remote DB file: %v\n", err)
+		log.Errorf("couldn't get metadata of remote DB file: %v", err)
 		return false
 	}
 
@@ -45,7 +46,7 @@ func checkChanges(m *Manager) bool {
 
 	reader, err := m.db.extDrive.GetFile(common.DatabaseFileName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't get updated db file: %v\n", err)
+		log.Errorf("couldn't get updated db file: %v", err)
 
 		return false
 	}
@@ -53,7 +54,7 @@ func checkChanges(m *Manager) bool {
 
 	file, err := common.NewTempDBFile()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not create DB file: %v\n", err)
+		log.Errorf("could not create DB file: %v", err)
 
 		return false
 	}
@@ -62,20 +63,24 @@ func checkChanges(m *Manager) bool {
 
 	_, err = io.Copy(file, m.cipher.NewDecryptReader(reader))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't copy contents of updated db file to local file: %v\n", err)
+		log.Errorf("couldn't copy contents of updated db file to local file: %v", err)
 
 		file.Close()
-		os.Remove(file.Name())
+		if err := os.Remove(file.Name()); err != nil {
+			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
+		}
 
 		return false
 	}
 
 	hash, err := hs.GetComputedHash()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't compute hash of database file: %v", err)
+		log.Errorf("couldn't compute hash of database file: %v", err)
 
 		file.Close()
-		os.Remove(file.Name())
+		if err := os.Remove(file.Name()); err != nil {
+			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
+		}
 
 		return false
 	}
@@ -84,21 +89,27 @@ func checkChanges(m *Manager) bool {
 
 	db, err := sqlite.NewClient(file.Name())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't connect to downloaded DB file: %v\n", err)
+		log.Errorf("couldn't connect to downloaded DB file: %v", err)
 
-		os.Remove(file.Name())
+		if err := os.Remove(file.Name()); err != nil {
+			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
+		}
 		return false
 	}
 	defer db.Close()
 
 	if !db.IsValidDatabase() {
-		fmt.Fprintf(os.Stderr, "couldn't verify the downloaded database file\n")
+		log.Error("couldn't verify the downloaded database file")
 
-		os.Remove(file.Name())
+		if err := os.Remove(file.Name()); err != nil {
+			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
+		}
 		return false
 	}
 
-	os.Remove(m.db.path)
+	if err := os.Remove(m.db.path); err != nil {
+		log.Warningf("couldn't remove file '%s' from filesystem: %v", m.db.path, err)
+	}
 
 	m.db.hash = hash
 	m.db.path = file.Name()
@@ -112,7 +123,7 @@ func updateCache(m *Manager) {
 
 	db, err := m.getSqliteClient()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't connect to database: %v\n", err)
+		log.Errorf("couldn't connect to database: %v", err)
 
 		// fallback to flush all
 		m.cache.Flush()
@@ -124,7 +135,7 @@ func updateCache(m *Manager) {
 	m.cache.FlushWithFilter(func(key string, it *cache.Item) bool {
 		md, err := db.Get(common.ToInt64(key))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't get metadata of %s: %v\n", key, err)
+			log.Errorf("couldn't get metadata of %s: %v", key, err)
 
 			// if there is an error, remove it
 			return true
@@ -190,20 +201,20 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 
 	u, err := common.ParseURL(url)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't parse url %s. skipping: %v\n", url, err)
+		log.Errorf("couldn't parse url %s. skipping: %v", url, err)
 		return
 	}
 
 	drv, err := m.getDriveClient(u.Scheme)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't find drive client of %s: %v\n", u.Scheme, err)
+		log.Errorf("couldn't find drive client of %s: %v", u.Scheme, err)
 		return
 	}
 
 	if isDBFile {
 		md, err := drv.GetFileMetadata(u.Name)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't get metadata of DB file: %v\n", err)
+			log.Errorf("couldn't get metadata of DB file: %v", err)
 
 			// readd to tracker
 			m.notifyChangeInDatabase()
@@ -212,22 +223,22 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 
 		if md.Hash != m.db.hash {
 			// @TODO: try to merge databases first
-			fmt.Fprintf(os.Stderr, "remote DB file is also changed, moving remote file...\n")
+			log.Warning("remote DB file is also changed, moving remote file...")
 
 			err := drv.MoveFile(common.DatabaseFileName,
 				common.GenerateConflictedFileName(common.DatabaseFileName))
 			if err != nil {
 				// log and ignore
-				fmt.Fprintf(os.Stderr, "unable to rename remote DB file: %v\n", err)
+				log.Warningf("unable to rename remote DB file: %v", err)
 			}
 		}
 	}
 
 	file, err := os.Open(local)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't open file %s: %v\n", local, err)
+		log.Errorf("couldn't open file %s: %v", local, err)
 
-		// readd to tracker
+		// re-add to tracker
 		m.notifyChangeInFile(local, url)
 		return
 	}
@@ -237,9 +248,9 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 
 	err = drv.PutFile(u.Name, hs.NewHashReader(m.cipher.NewEncryptReader(file)))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't upload file: %v\n", err)
+		log.Errorf("couldn't upload file: %v", err)
 
-		// readd to tracker
+		// re-add to tracker
 		m.notifyChangeInFile(local, url)
 		return
 	}
@@ -247,7 +258,7 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 	hash, err := hs.GetComputedHash()
 	if err != nil {
 		// log it and continue
-		fmt.Fprintf(os.Stderr, "couldn't compute hash of file: %v\n", err)
+		log.Errorf("couldn't compute hash of file: %v", err)
 
 		// this will force download of database
 		hash = ""

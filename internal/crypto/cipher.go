@@ -9,9 +9,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
 
 	"golang.org/x/crypto/pbkdf2"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -58,7 +59,7 @@ func (c *Cipher) encrypt(r io.Reader, w io.WriteCloser) {
 
 	block, err := aes.NewCipher(c.key)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't create cipher block: %v\n", err)
+		log.Errorf("couldn't create cipher block: %v", err)
 
 		return
 	}
@@ -67,7 +68,7 @@ func (c *Cipher) encrypt(r io.Reader, w io.WriteCloser) {
 	for {
 		n, err := r.Read(chunk)
 		if err != nil && err != io.EOF {
-			fmt.Fprintf(os.Stderr, "couldn't read from file: %v\n", err)
+			log.Errorf("couldn't read from file: %v", err)
 
 			return
 		}
@@ -82,7 +83,7 @@ func (c *Cipher) encrypt(r io.Reader, w io.WriteCloser) {
 
 		_, err = w.Write(mac)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't write MAC to buffer: %v\n", err)
+			log.Errorf("couldn't write MAC to buffer: %v", err)
 
 			return
 		}
@@ -92,7 +93,7 @@ func (c *Cipher) encrypt(r io.Reader, w io.WriteCloser) {
 
 		_, err = io.ReadFull(rand.Reader, iv)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't read random values into IV: %v\n", err)
+			log.Errorf("couldn't read random values into IV: %v", err)
 
 			return
 		}
@@ -102,7 +103,7 @@ func (c *Cipher) encrypt(r io.Reader, w io.WriteCloser) {
 
 		_, err = w.Write(ciphertext)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't write ciphertext to buffer: %v\n", err)
+			log.Errorf("couldn't write ciphertext to buffer: %v", err)
 			return
 		}
 
@@ -117,7 +118,7 @@ func (c *Cipher) decrypt(r io.Reader, w io.WriteCloser) {
 
 	block, err := aes.NewCipher(c.key)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't create cipher block: %v\n", err)
+		log.Errorf("couldn't create cipher block: %v", err)
 
 		return
 	}
@@ -134,7 +135,7 @@ func (c *Cipher) decrypt(r io.Reader, w io.WriteCloser) {
 		for {
 			n, err := r.Read(chunk[ntotal:])
 			if err != nil && err != io.EOF {
-				fmt.Fprintf(os.Stderr, "couldn't read HMAC from reader: %v\n", err)
+				log.Errorf("couldn't read HMAC from reader: %v", err)
 				return
 			}
 
@@ -156,13 +157,13 @@ func (c *Cipher) decrypt(r io.Reader, w io.WriteCloser) {
 		dec.XORKeyStream(ciphertext, ciphertext)
 
 		if !hmac.Equal(mac, c.computeHMAC(ciphertext)) {
-			fmt.Fprintf(os.Stderr, "file might be altered!\n")
+			log.Error("file might be altered!")
 			return
 		}
 
 		_, err = w.Write(ciphertext)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't write decrypted data to buffer: %v\n", err)
+			log.Errorf("couldn't write decrypted data to buffer: %v", err)
 			return
 		}
 

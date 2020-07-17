@@ -11,6 +11,8 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/drive"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
 	"github.com/paddlesteamer/go-cache"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Manager is where all the business logic happens
@@ -374,7 +376,11 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*sqlite.Metad
 	checksum, err := crypto.MD5Checksum(tmpfile)
 	if err != nil {
 		tmpfile.Close()
-		os.Remove(tmpfile.Name())
+
+		if err := os.Remove(tmpfile.Name()); err != nil {
+			log.Warningf("couldn't remove file '%s' from filesystem: %v", tmpfile.Name(), err)
+		}
+
 		return nil, fmt.Errorf("couldn't compute md5 checksum of newly created file: %v", err)
 	}
 
@@ -439,18 +445,18 @@ func (m *Manager) downloadFile(md *sqlite.Metadata) (string, error) {
 func (m *Manager) deleteRemoteFile(md *sqlite.Metadata) {
 	u, err := common.ParseURL(md.URL)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't parse URL '%s': %v\n", md.URL, err)
+		log.Errorf("couldn't parse URL '%s': %v", md.URL, err)
 		return
 	}
 
 	drv, err := m.getDriveClient(u.Scheme)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't find drive '%s': %v\n", u.Scheme, err)
+		log.Errorf("couldn't find drive '%s': %v", u.Scheme, err)
 		return
 	}
 
 	if err := drv.DeleteFile(u.Name); err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't delete file from remote drive '%s': %v\n", md.URL, err)
+		log.Errorf("couldn't delete file from remote drive '%s': %v", md.URL, err)
 		return
 	}
 }
@@ -463,7 +469,7 @@ func (m *Manager) selectDrive() drive.Drive {
 	for i, drv := range m.drives {
 		space, err := drv.GetAvailableSpace()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't get available space for %s: %v, ignoring...", drv.GetProviderName(), err)
+			log.Warningf("couldn't get available space for %s: %v, ignoring...", drv.GetProviderName(), err)
 			continue
 		}
 
