@@ -31,7 +31,7 @@ func watchRemoteChanges(m *Manager) {
 func checkChanges(m *Manager) bool {
 	mdata, err := m.db.extDrive.GetFileMetadata(common.DatabaseFileName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		fmt.Fprintf(os.Stderr, "couldn't get metadata of remote DB file: %v\n", err)
 		return false
 	}
 
@@ -50,9 +50,9 @@ func checkChanges(m *Manager) bool {
 	}
 	defer reader.Close()
 
-	file, err := os.Create(m.db.path)
+	file, err := common.NewTempDBFile()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "couldn't open db: %v\n", err)
+		fmt.Fprintf(os.Stderr, "could not create DB file: %v\n", err)
 
 		return false
 	}
@@ -64,6 +64,9 @@ func checkChanges(m *Manager) bool {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't copy contents of updated db file to local file: %v\n", err)
 
+		file.Close()
+		os.Remove(file.Name())
+
 		return false
 	}
 
@@ -71,10 +74,16 @@ func checkChanges(m *Manager) bool {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't compute hash of database file: %v", err)
 
+		file.Close()
+		os.Remove(file.Name())
+
 		return false
 	}
 
+	os.Remove(m.db.path)
+
 	m.db.hash = hash
+	m.db.path = file.Name()
 
 	return true
 }
