@@ -133,15 +133,18 @@ func updateCache(m *Manager) {
 	defer db.Close()
 
 	m.cache.FlushWithFilter(func(key string, it *cache.Item) bool {
+		entry := it.Object.(cacheEntry)
+
 		md, err := db.Get(common.ToInt64(key))
 		if err != nil {
 			log.Errorf("couldn't get metadata of %s: %v", key, err)
 
 			// if there is an error, remove it
+			if err := os.Remove(entry.path); err != nil {
+				log.Warningf("couldn't remove file '%s' from filesytem: %v", entry.path, err)
+			}
 			return true
 		}
-
-		entry := it.Object.(cacheEntry)
 
 		return entry.hash != md.Hash
 	})
