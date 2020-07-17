@@ -9,6 +9,7 @@ import (
 
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
+	"github.com/paddlesteamer/cloudstash/internal/sqlite"
 	"github.com/paddlesteamer/go-cache"
 )
 
@@ -56,7 +57,6 @@ func checkChanges(m *Manager) bool {
 
 		return false
 	}
-	defer file.Close()
 
 	hs := crypto.NewHashStream(m.db.extDrive)
 
@@ -77,6 +77,24 @@ func checkChanges(m *Manager) bool {
 		file.Close()
 		os.Remove(file.Name())
 
+		return false
+	}
+
+	file.Close()
+
+	db, err := sqlite.NewClient(file.Name())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "couldn't connect to downloaded DB file: %v\n", err)
+
+		os.Remove(file.Name())
+		return false
+	}
+	defer db.Close()
+
+	if !db.IsValidDatabase() {
+		fmt.Fprintf(os.Stderr, "couldn't verify the downloaded database file\n")
+
+		os.Remove(file.Name())
 		return false
 	}
 

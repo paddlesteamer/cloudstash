@@ -66,7 +66,6 @@ func fetchDB(extDrive drive.Drive, cipher *crypto.Cipher) (*database, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create DB file: %v", err)
 	}
-	defer file.Close()
 
 	reader, err := extDrive.GetFile(common.DatabaseFileName)
 	if err != nil {
@@ -86,6 +85,20 @@ func fetchDB(extDrive drive.Drive, cipher *crypto.Cipher) (*database, error) {
 	if err != nil {
 		os.Remove(file.Name())
 		return nil, fmt.Errorf("couldn't compute hash of database file: %v", err)
+	}
+
+	file.Close()
+
+	db, err := sqlite.NewClient(file.Name())
+	if err != nil {
+		os.Remove(file.Name())
+		return nil, fmt.Errorf("couldn't connect to downloaded DB file: %v", err)
+	}
+	defer db.Close()
+
+	if !db.IsValidDatabase() {
+		os.Remove(file.Name())
+		return nil, fmt.Errorf("couldn't verify the downloaded database file")
 	}
 
 	return &database{

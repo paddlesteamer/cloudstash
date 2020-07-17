@@ -68,6 +68,19 @@ func (c *Client) Close() {
 	c.db.Close()
 }
 
+// IsValidDatabase checks whether `files` table exists
+func (c *Client) IsValidDatabase() bool {
+	query, _ := c.db.Prepare("SELECT * FROM files LIMIT 1")
+
+	row, err := query.Query()
+	if err != nil {
+		return false
+	}
+	defer row.Close()
+
+	return true
+}
+
 func (c *Client) Search(parent int64, name string) (*Metadata, error) {
 	query, err := c.db.Prepare("SELECT * FROM files WHERE name=? and parent=?")
 	if err != nil {
