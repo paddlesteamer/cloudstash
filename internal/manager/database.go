@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,9 +11,12 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
 	"github.com/paddlesteamer/cloudstash/internal/drive"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
+	"github.com/paddlesteamer/go-cache"
 
 	log "github.com/sirupsen/logrus"
 )
+
+var errDatabaseBricked = errors.New("database file is broken")
 
 type database struct {
 	path     string       // local path of database
@@ -146,7 +150,7 @@ func (db *database) clean() {
 // - if a file is removed from remote database, it is added again
 // - if a new file is added to remote database, it is added to local database too
 // - remote database's inode numbers are used in local db in order to get synchronized with other clients
-func (db *database) merge(path string) error {
+func (db *database) merge(path string, cache *cache.Cache) error {
 	// backup local copy just in case
 	backup, err := db.backupDatabase()
 	if err != nil {
@@ -164,12 +168,20 @@ func (db *database) merge(path string) error {
 		return fmt.Errorf("couldn't connect to local copy of remote DB: %v", err)
 	}
 
-	merge(localDb, remoteDb)
+	if err := merge(localDb, remoteDb, cache); err != nil {
+		return fmt.Errorf("couldn't merge databases: %v", err)
+	}
+
+	if err := db.restoreDatabase(backup); err != nil {
+		log.Errorf("critical error! database may be bricked: %v", err)
+
+		return errDatabaseBricked
+	}
 
 	return nil
 }
 
-func merge(local *sqlite.Client, remote *sqlite.Client) error {
+func merge(local *sqlite.Client, remote *sqlite.Client, cache *cache.Cache) error {
 	defer local.Close()
 	defer remote.Close()
 
@@ -200,11 +212,11 @@ func merge(local *sqlite.Client, remote *sqlite.Client) error {
 
 		offset += chunkSize
 
-		go processChunk(mdList, local, &wg, &mu, errChan)
+		go processChunk(mdList, local, cache, &wg, &mu, errChan)
 
 		thCount++
 
-		// don't start any more go routines if thread limit is reached
+		// don't start more go routines if thread limit is reached
 		if thCount == threadLimit {
 			wg.Wait()
 			thCount = 0
@@ -232,7 +244,7 @@ func merge(local *sqlite.Client, remote *sqlite.Client) error {
 	return nil
 }
 
-func processChunk(mdList []sqlite.Metadata, local *sqlite.Client, wg *sync.WaitGroup, mu *sync.RWMutex, errChan chan error) {
+func processChunk(mdList []sqlite.Metadata, local *sqlite.Client, cache *cache.Cache, wg *sync.WaitGroup, mu *sync.RWMutex, errChan chan error) {
 	wg.Add(1)
 	defer wg.Done()
 
@@ -245,18 +257,48 @@ func processChunk(mdList []sqlite.Metadata, local *sqlite.Client, wg *sync.WaitG
 
 			return
 		}
+		mu.RUnlock()
 
 		if err == common.ErrNotFound {
 			// force insert with inode
+			mu.Lock()
+			if err := local.ForceInsert(&md); err != nil {
+				errChan <- fmt.Errorf("couldn't force insert row: %v", err)
+				mu.Unlock()
+
+				return
+			}
+
+			mu.Unlock()
+			continue
 		}
 
 		if lmd.Name != md.Name && lmd.Parent != md.Parent && lmd.Hash != md.Hash {
 			// assuming it is a complete different file
-			// replace remote row with the local one and
+			// replace local row with the remote one and
 			// re-insert local row with a new inode
 			// if we don't do this way, the other client's cache may have
 			// wrong files.
 			// it is important to delete this inode from local cache.
+
+			mu.Lock()
+			if err := local.Update(&md); err != nil {
+				errChan <- fmt.Errorf("couldn't update row: %v", err)
+				mu.Unlock()
+
+				return
+			}
+
+			if err := local.Insert(lmd); err != nil {
+				errChan <- fmt.Errorf("couldn't insert row: %v", err)
+				mu.Unlock()
+
+				return
+			}
+
+			mu.Unlock()
+
+			cache.Delete(common.ToString(md.Inode))
 		}
 	}
 }

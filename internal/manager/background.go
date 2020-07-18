@@ -225,8 +225,7 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 		}
 
 		if md.Hash != m.db.hash {
-			// @TODO: try to merge databases first
-			log.Warning("remote DB file is also changed, moving remote file...")
+			log.Warning("remote DB file is also changed")
 
 			remoteDb, err := common.NewTempDBFile()
 			if err != nil {
@@ -269,13 +268,27 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 
 			remoteDb.Close()
 
-			if err := m.db.merge(remoteDb.Name()); err != nil {
+			if err := m.db.merge(remoteDb.Name(), m.cache); err != nil {
 				log.Errorf("couldn't merge local DB with the remote one: %v", err)
+
+				if err == errDatabaseBricked {
+					// if local database is broken, fallback to remote database
+					// this is a very dirty thing to do but it's if it comes to this
+					// this is our best option
+
+					if err := os.Remove(m.db.path); err != nil {
+						log.Warningf("couldn't remove DB file '%s': %v", m.db.path, err)
+					}
+
+					m.db.path = remoteDb.Name()
+					return
+				}
 
 				if err := os.Remove(remoteDb.Name()); err != nil {
 					log.Warningf("couldn't remove DB file '%s': %v", remoteDb.Name(), err)
 				}
 
+				// there is an error but database file isn't lost. try again next time
 				// re-add to tracker
 				m.notifyChangeInDatabase()
 				return

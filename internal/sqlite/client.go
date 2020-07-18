@@ -325,6 +325,34 @@ func (c *Client) GetRowCount() (int, error) {
 	return count, nil
 }
 
+// Insert inserts metadata to database
+func (c *Client) Insert(md *Metadata) error {
+	query, err := c.db.Prepare("INSERT INTO files(name, url, size, mode, parent, type, hash) VALUES(?, ?, ?, ?, ?, ?, ?)")
+	if err != nil {
+		return fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	if _, err := query.Exec(md.Name, md.URL, md.Size, md.Mode, md.Parent, md.Type, md.Hash); err != nil {
+		return fmt.Errorf("couldn't insert file: %v", err)
+	}
+
+	return nil
+}
+
+// ForceInsert inserts metadata with provided inode, doesn't rely on autoincrement
+func (c *Client) ForceInsert(md *Metadata) error {
+	query, err := c.db.Prepare("INSERT INTO files(inode, name, url, size, mode, parent, type, hash) VALUES(?, ?, ?, ?, ?, ?, ?, ?)")
+	if err != nil {
+		return fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	if _, err := query.Exec(md.Inode, md.Name, md.URL, md.Size, md.Mode, md.Parent, md.Type, md.Hash); err != nil {
+		return fmt.Errorf("couldn't insert file: %v", err)
+	}
+
+	return nil
+}
+
 func (c *Client) fillNLink(md *Metadata) error {
 	if md.Type == common.DrvFile {
 		md.NLink = 1
