@@ -1,10 +1,15 @@
 package drive
 
 import (
+	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files"
@@ -16,6 +21,8 @@ import (
 type Dropbox struct {
 	client  files.Client
 	account users.Client
+
+	mu sync.Mutex
 }
 
 // NewDropboxClient creates a new Dropbox client.
@@ -121,6 +128,58 @@ func (d *Dropbox) MoveFile(name string, newName string) error {
 		return fmt.Errorf("couldn't move file from %s to %s on dropbox: %v", name, newName, err)
 	}
 
+	return nil
+}
+
+// Lock creates a lock file on dropbox
+// This ensures lock acquire requests from different
+// clients goes into race condition and is completely
+// thread/client safe
+func (d *Dropbox) Lock() error {
+	d.mu.Lock()
+
+	lfile := getPath(lockFile)
+
+	// we need to create random content to lock file otherwise
+	// dropbox doesn't return conflict error
+	content := make([]byte, 8)
+	if _, err := io.ReadFull(rand.Reader, content); err != nil {
+		// fall back to timestamp
+		binary.LittleEndian.PutUint64(content, uint64(time.Now().UnixNano()))
+	}
+
+	uargs := files.NewCommitInfo(lfile)
+
+	for {
+		_, err := d.client.Upload(uargs, bytes.NewReader(content))
+		if err != nil {
+			if strings.Contains(err.Error(), "conflict") {
+				continue
+			}
+
+			d.mu.Unlock()
+			return fmt.Errorf("could not create lock file on dropbox: %v", err)
+		}
+
+		break
+	}
+
+	return nil
+}
+
+// Unlock deletes lock file from dropbox
+// and ignores not found error
+func (d *Dropbox) Unlock() error {
+	if err := d.DeleteFile(lockFile); err != nil {
+		if err == common.ErrNotFound {
+			d.mu.Unlock()
+			return nil
+		}
+
+		return fmt.Errorf("couldn't delete lock file: %v", err)
+	}
+
+	d.mu.Unlock()
 	return nil
 }
 

@@ -5,6 +5,10 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"math/rand"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"golang.org/x/oauth2"
@@ -15,6 +19,9 @@ import (
 type GDrive struct {
 	srv          *drive.Service
 	rootFolderID string
+
+	mu     sync.Mutex
+	lockId string
 }
 
 func NewGDriveClient(token *oauth2.Token) (*GDrive, error) {
@@ -156,6 +163,84 @@ func (g *GDrive) MoveFile(name string, newName string) error {
 		return fmt.Errorf("couldn't move file from %s to %s on gdrive: %v", name, newName, err)
 	}
 
+	return nil
+}
+
+// Lock creates a lock file on gdrive
+// If a lock file doesn't exists before, it creates a lock file then checks
+// the count of lock files on the gdrive. If it is more than one(somebody else
+// also created a lock file), it removes its own lock file, waits random amount of
+// time and start checking lock files again
+func (g *GDrive) Lock() error {
+	g.mu.Lock()
+
+	query := g.srv.Files.List().PageSize(10).
+		Q(fmt.Sprintf("name='%s' and trashed=false", lockFile)).Fields("files(id, name)")
+
+	f := &drive.File{
+		Name:    lockFile,
+		Parents: []string{g.rootFolderID},
+	}
+
+	for {
+		res, err := query.Do()
+		if err != nil {
+			g.mu.Unlock()
+			return fmt.Errorf("couldn't query lock file: %v", err)
+		}
+
+		if len(res.Files) > 0 {
+			continue
+		}
+
+		file, err := g.srv.Files.Create(f).Do()
+		if err != nil {
+			g.mu.Unlock()
+			return fmt.Errorf("couldn't create lock file on gdrive: %v", err)
+		}
+
+		g.lockId = file.Id
+
+		// lock file is created now
+		// errors after here are critical
+		// if not handled, may block all other clients
+		res, err = query.Do()
+		if err != nil {
+			if derr := g.srv.Files.Delete(file.Id).Do(); derr != nil {
+				g.mu.Unlock()
+				return fmt.Errorf("critical error: couldn't delete lock file: %v", derr)
+			}
+
+			g.mu.Unlock()
+			return fmt.Errorf("couldn't query lock file: %v", err)
+		}
+
+		if len(res.Files) == 1 {
+			break
+		}
+
+		if err := g.srv.Files.Delete(file.Id).Do(); err != nil {
+			g.mu.Unlock()
+			return fmt.Errorf("critical error: couldn't delete lock file: %v", err)
+		}
+
+		time.Sleep(time.Duration(rand.Int63n(400)+100) * time.Second)
+	}
+
+	return nil
+}
+
+func (g *GDrive) Unlock() error {
+	if err := g.srv.Files.Delete(g.lockId).Do(); err != nil {
+		if strings.Contains(err.Error(), "404") { // ugly hack to distinguish not found
+			g.mu.Unlock()
+			return nil
+		}
+
+		return fmt.Errorf("couldn't delete lock file: %v", err)
+	}
+
+	g.mu.Unlock()
 	return nil
 }
 

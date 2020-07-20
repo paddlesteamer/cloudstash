@@ -5,6 +5,8 @@ import (
 	"io"
 )
 
+const lockFile = "cloudstash.lock"
+
 // Metadata contains name, size (in bytes), and content hash of a remote file
 type Metadata struct {
 	Name string
@@ -34,6 +36,14 @@ type Drive interface {
 
 	// MoveFile renames file
 	MoveFile(name string, newName string) error
+
+	// Lock create lock file on remote drive
+	// If there is a lock file on remote drive already
+	// it should block until remote lock is removed
+	Lock() error
+
+	// Unlock removes lock from remote drive
+	Unlock() error
 
 	// ComputeHash computes hash of file with drive's specific method.
 	// This function is used as another thread, so return values should be
