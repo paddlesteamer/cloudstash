@@ -16,14 +16,17 @@ import (
 	"google.golang.org/api/drive/v3"
 )
 
+// GDrive is google drive client
 type GDrive struct {
 	srv          *drive.Service
 	rootFolderID string
 
 	mu     sync.Mutex
-	lockId string
+	lockID string
 }
 
+// NewGDriveClient creates app folder on google drive if it doesn;t exists
+// and returns GDrive client
 func NewGDriveClient(token *oauth2.Token) (*GDrive, error) {
 	config, _ := google.ConfigFromJSON([]byte(common.GDriveCredentials), drive.DriveFileScope)
 
@@ -38,7 +41,7 @@ func NewGDriveClient(token *oauth2.Token) (*GDrive, error) {
 		srv: srv,
 	}
 
-	folder, err := drv.getFileId(common.GDriveAppFolder)
+	folder, err := drv.getFileID(common.GDriveAppFolder)
 	if err != nil && err != common.ErrNotFound {
 		return nil, fmt.Errorf("couldn't query for root folder: %v", err)
 	}
@@ -62,12 +65,14 @@ func NewGDriveClient(token *oauth2.Token) (*GDrive, error) {
 	return drv, nil
 }
 
+// GetProviderName returns 'gdrive'
 func (g *GDrive) GetProviderName() string {
 	return "gdrive"
 }
 
+// GetFile returns ReadCloser of remote file on google drive
 func (g *GDrive) GetFile(name string) (io.ReadCloser, error) {
-	id, err := g.getFileId(name)
+	id, err := g.getFileID(name)
 	if err != nil && err != common.ErrNotFound {
 		return nil, fmt.Errorf("couldn't retrieve file id: %v", err)
 	}
@@ -84,8 +89,9 @@ func (g *GDrive) GetFile(name string) (io.ReadCloser, error) {
 	return res.Body, nil
 }
 
+// PutFile uploads file to google drive
 func (g *GDrive) PutFile(name string, content io.Reader) error {
-	id, err := g.getFileId(name)
+	id, err := g.getFileID(name)
 	if err != nil && err != common.ErrNotFound {
 		return fmt.Errorf("couldn't retrieve file id: %v", err)
 	}
@@ -109,8 +115,9 @@ func (g *GDrive) PutFile(name string, content io.Reader) error {
 	return nil
 }
 
+// GetFileMetadata retrieve file metadata from google drive
 func (g *GDrive) GetFileMetadata(name string) (*Metadata, error) {
-	id, err := g.getFileId(name)
+	id, err := g.getFileID(name)
 	if err != nil && err != common.ErrNotFound {
 		return nil, fmt.Errorf("couldn't retrieve file id: %v", err)
 	}
@@ -132,8 +139,9 @@ func (g *GDrive) GetFileMetadata(name string) (*Metadata, error) {
 	}, nil
 }
 
+// DeleteFile move files on google drive to trash
 func (g *GDrive) DeleteFile(name string) error {
-	id, err := g.getFileId(name)
+	id, err := g.getFileID(name)
 	if err != nil && err != common.ErrNotFound {
 		return fmt.Errorf("couldn't retrieve file id: %v", err)
 	}
@@ -149,8 +157,9 @@ func (g *GDrive) DeleteFile(name string) error {
 	return nil
 }
 
+// MoveFile renames file on google drive
 func (g *GDrive) MoveFile(name string, newName string) error {
-	id, err := g.getFileId(name)
+	id, err := g.getFileID(name)
 	if err != nil {
 		return fmt.Errorf("couldn't retrieve file %s's id: %v", name, err)
 	}
@@ -199,7 +208,7 @@ func (g *GDrive) Lock() error {
 			return fmt.Errorf("couldn't create lock file on gdrive: %v", err)
 		}
 
-		g.lockId = file.Id
+		g.lockID = file.Id
 
 		// lock file is created now
 		// errors after here are critical
@@ -230,8 +239,9 @@ func (g *GDrive) Lock() error {
 	return nil
 }
 
+// Unlock removes lock file from google drive
 func (g *GDrive) Unlock() error {
-	if err := g.srv.Files.Delete(g.lockId).Do(); err != nil {
+	if err := g.srv.Files.Delete(g.lockID).Do(); err != nil {
 		if strings.Contains(err.Error(), "404") { // ugly hack to distinguish not found
 			g.mu.Unlock()
 			return nil
@@ -244,6 +254,7 @@ func (g *GDrive) Unlock() error {
 	return nil
 }
 
+// ComputeHash computes md5 checksum of provided file
 func (g *GDrive) ComputeHash(r io.Reader, hchan chan string, echan chan error) {
 	h := md5.New()
 
@@ -254,6 +265,7 @@ func (g *GDrive) ComputeHash(r io.Reader, hchan chan string, echan chan error) {
 	hchan <- fmt.Sprintf("%x", h.Sum(nil))
 }
 
+// GetAvailableSpace returns available space in bytes
 // @TODO: handle unlimited storage
 func (g *GDrive) GetAvailableSpace() (int64, error) {
 	res, err := g.srv.About.Get().Fields("storageQuota(limit, usage)").Do()
@@ -264,7 +276,7 @@ func (g *GDrive) GetAvailableSpace() (int64, error) {
 	return res.StorageQuota.Limit - res.StorageQuota.Usage, nil
 }
 
-func (g *GDrive) getFileId(name string) (string, error) {
+func (g *GDrive) getFileID(name string) (string, error) {
 	res, err := g.srv.Files.List().PageSize(10).
 		Q(fmt.Sprintf("name='%s' and trashed=false", name)).Fields("files(id, name)").Do()
 	if err != nil {
