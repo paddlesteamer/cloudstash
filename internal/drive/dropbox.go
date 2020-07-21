@@ -18,6 +18,7 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/config"
 )
 
+// Dropbox is holds necessary info about dropbox client
 type Dropbox struct {
 	client  files.Client
 	account users.Client
@@ -38,11 +39,12 @@ func NewDropboxClient(conf *config.DropboxCredentials) *Dropbox {
 	}
 }
 
+// GetProviderName returns 'dropbox'
 func (d *Dropbox) GetProviderName() string {
 	return "dropbox"
 }
 
-// @todo: add descriptive comment
+// GetFile returns ReadCloser of remote file on dropbox
 func (d *Dropbox) GetFile(name string) (io.ReadCloser, error) {
 	name = getPath(name)
 
@@ -255,6 +257,7 @@ func (d *Dropbox) ComputeHash(r io.Reader, hchan chan string, echan chan error) 
 
 }
 
+// GetAvailableSpace returns available space in bytes
 func (d *Dropbox) GetAvailableSpace() (int64, error) {
 	res, err := d.account.GetSpaceUsage()
 	if err != nil {
