@@ -44,10 +44,18 @@ func checkChanges(m *Manager) bool {
 		return false
 	}
 
+	if err := m.db.extDrive.Lock(); err != nil {
+		log.Errorf("unable to acquire remote lock: %v", err)
+		return false
+	}
+
 	reader, err := m.db.extDrive.GetFile(common.DatabaseFileName)
 	if err != nil {
 		log.Errorf("couldn't get updated db file: %v", err)
 
+		if err := m.db.extDrive.Unlock(); err != nil {
+			log.Errorf("couldn't release remote lock: %v", err)
+		}
 		return false
 	}
 	defer reader.Close()
@@ -56,6 +64,9 @@ func checkChanges(m *Manager) bool {
 	if err != nil {
 		log.Errorf("could not create DB file: %v", err)
 
+		if err := m.db.extDrive.Unlock(); err != nil {
+			log.Errorf("couldn't release remote lock: %v", err)
+		}
 		return false
 	}
 
@@ -70,6 +81,9 @@ func checkChanges(m *Manager) bool {
 			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
 		}
 
+		if err := m.db.extDrive.Unlock(); err != nil {
+			log.Errorf("couldn't release remote lock: %v", err)
+		}
 		return false
 	}
 
@@ -82,6 +96,9 @@ func checkChanges(m *Manager) bool {
 			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
 		}
 
+		if err := m.db.extDrive.Unlock(); err != nil {
+			log.Errorf("couldn't release remote lock: %v", err)
+		}
 		return false
 	}
 
@@ -94,6 +111,11 @@ func checkChanges(m *Manager) bool {
 		if err := os.Remove(file.Name()); err != nil {
 			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
 		}
+
+		if err := m.db.extDrive.Unlock(); err != nil {
+			log.Errorf("couldn't release remote lock: %v", err)
+		}
+
 		return false
 	}
 	defer db.Close()
@@ -104,11 +126,20 @@ func checkChanges(m *Manager) bool {
 		if err := os.Remove(file.Name()); err != nil {
 			log.Warningf("couldn't remove file '%s' from filesystem: %v", file.Name(), err)
 		}
+
+		if err := m.db.extDrive.Unlock(); err != nil {
+			log.Errorf("couldn't release remote lock: %v", err)
+		}
+
 		return false
 	}
 
 	if err := os.Remove(m.db.path); err != nil {
 		log.Warningf("couldn't remove file '%s' from filesystem: %v", m.db.path, err)
+	}
+
+	if err := m.db.extDrive.Unlock(); err != nil {
+		log.Errorf("couldn't release remote lock: %v", err)
 	}
 
 	m.db.hash = hash
@@ -197,27 +228,36 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 
 	isDBFile := local == m.db.path
 
-	if isDBFile {
-		m.db.wLock()
-		defer m.db.wUnlock()
-	}
-
 	u, err := common.ParseURL(url)
 	if err != nil {
 		log.Errorf("couldn't parse url %s. skipping: %v", url, err)
+
 		return
 	}
 
 	drv, err := m.getDriveClient(u.Scheme)
 	if err != nil {
 		log.Errorf("couldn't find drive client of %s: %v", u.Scheme, err)
+
 		return
 	}
 
 	if isDBFile {
+		if err := m.db.extDrive.Lock(); err != nil {
+			log.Errorf("couldn't acquire remote lock: %v", err)
+			return
+		}
+
+		m.db.wLock()
+		defer m.db.wUnlock()
+
 		md, err := drv.GetFileMetadata(u.Name)
 		if err != nil {
 			log.Errorf("couldn't get metadata of DB file: %v", err)
+
+			if err := m.db.extDrive.Unlock(); err != nil {
+				log.Errorf("couldn't release remote lock: %v", err)
+			}
 
 			// re-add to tracker
 			m.notifyChangeInDatabase()
@@ -230,6 +270,10 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 			remoteDb, err := common.NewTempDBFile()
 			if err != nil {
 				log.Errorf("couldn't create file for remote DB: %v", err)
+
+				if err := m.db.extDrive.Unlock(); err != nil {
+					log.Errorf("couldn't release remote lock: %v", err)
+				}
 
 				// re-add to tracker
 				m.notifyChangeInDatabase()
@@ -246,6 +290,10 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 					log.Warningf("couldn't remove DB file '%s': %v", remoteDb.Name(), err)
 				}
 
+				if err := m.db.extDrive.Unlock(); err != nil {
+					log.Errorf("couldn't release remote lock: %v", err)
+				}
+
 				// re-add to tracker
 				m.notifyChangeInDatabase()
 				return
@@ -259,6 +307,10 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 
 				if err := os.Remove(remoteDb.Name()); err != nil {
 					log.Warningf("couldn't remove DB file '%s': %v", remoteDb.Name(), err)
+				}
+
+				if err := m.db.extDrive.Unlock(); err != nil {
+					log.Errorf("couldn't release remote lock: %v", err)
 				}
 
 				// re-add to tracker
@@ -280,12 +332,20 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 						log.Warningf("couldn't remove DB file '%s': %v", m.db.path, err)
 					}
 
+					if err := m.db.extDrive.Unlock(); err != nil {
+						log.Errorf("couldn't release remote lock: %v", err)
+					}
+
 					m.db.path = remoteDb.Name()
 					return
 				}
 
 				if err := os.Remove(remoteDb.Name()); err != nil {
 					log.Warningf("couldn't remove DB file '%s': %v", remoteDb.Name(), err)
+				}
+
+				if err := m.db.extDrive.Unlock(); err != nil {
+					log.Errorf("couldn't release remote lock: %v", err)
 				}
 
 				// there is an error but database file isn't lost. try again next time
@@ -308,6 +368,12 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 	if err != nil {
 		log.Errorf("couldn't open file %s: %v", local, err)
 
+		if isDBFile {
+			if err := m.db.extDrive.Unlock(); err != nil {
+				log.Errorf("couldn't release remote lock: %v", err)
+			}
+		}
+
 		// re-add to tracker
 		m.notifyChangeInFile(local, url)
 		return
@@ -320,6 +386,12 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 	if err != nil {
 		log.Errorf("couldn't upload file: %v", err)
 
+		if isDBFile {
+			if err := m.db.extDrive.Unlock(); err != nil {
+				log.Errorf("couldn't release remote lock: %v", err)
+			}
+		}
+
 		// re-add to tracker
 		m.notifyChangeInFile(local, url)
 		return
@@ -330,12 +402,22 @@ func processItem(local string, url string, m *Manager, wg *sync.WaitGroup) {
 		// log it and continue
 		log.Errorf("couldn't compute hash of file: %v", err)
 
+		if isDBFile {
+			if err := m.db.extDrive.Unlock(); err != nil {
+				log.Errorf("couldn't release remote lock: %v", err)
+			}
+		}
+
 		// this will force download of database
 		hash = ""
 	}
 
 	if isDBFile {
 		m.db.hash = hash
+
+		if err := m.db.extDrive.Unlock(); err != nil {
+			log.Errorf("couldn't release remote lock: %v", err)
+		}
 	}
 
 }

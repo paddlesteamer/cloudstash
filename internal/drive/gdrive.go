@@ -78,6 +78,10 @@ func (g *GDrive) GetFile(name string) (io.ReadCloser, error) {
 
 	res, err := g.srv.Files.Get(id).Download()
 	if err != nil {
+		if strings.Contains(err.Error(), "404") { // ugly hack to distinguish not found error
+			return nil, common.ErrNotFound
+		}
+
 		return nil, fmt.Errorf("couldn't download file %s from gdrive: %v", name, err)
 	}
 
@@ -101,7 +105,6 @@ func (g *GDrive) PutFile(name string, content io.Reader) error {
 		Parents: []string{g.rootFolderID},
 	}
 
-	// @todo: check specific errors - not all errors are errors
 	if _, err := g.srv.Files.Create(f).Media(content).Do(); err != nil {
 		return fmt.Errorf("couldn't upload file %s: %v", name, err)
 	}
@@ -120,8 +123,11 @@ func (g *GDrive) GetFileMetadata(name string) (*Metadata, error) {
 	}
 
 	md, err := g.srv.Files.Get(id).Fields("name,size,md5Checksum").Do()
-	// @todo: check specific errors - not all errors are errors
 	if err != nil {
+		if strings.Contains(err.Error(), "404") { // ugly hack to distinguish not found error
+			return nil, common.ErrNotFound
+		}
+
 		return nil, fmt.Errorf("couldn't get file metadata: %v", err)
 	}
 
@@ -143,6 +149,10 @@ func (g *GDrive) DeleteFile(name string) error {
 	}
 
 	if err := g.srv.Files.Delete(id).Do(); err != nil {
+		if strings.Contains(err.Error(), "404") {
+			return common.ErrNotFound
+		}
+
 		return fmt.Errorf("couldn't delete file %s: %v", name, err)
 	}
 
@@ -174,6 +184,9 @@ func (g *GDrive) MoveFile(name string, newName string) error {
 func (g *GDrive) Lock() error {
 	g.mu.Lock()
 
+	sTime := time.Now()
+	lockID := ""
+
 	query := g.srv.Files.List().PageSize(10).
 		Q(fmt.Sprintf("name='%s' and trashed=false", lockFile)).Fields("files(id, name)")
 
@@ -190,6 +203,17 @@ func (g *GDrive) Lock() error {
 		}
 
 		if len(res.Files) > 0 {
+			if lockID != res.Files[0].Id {
+				lockID = res.Files[0].Id
+				sTime = time.Now()
+			}
+
+			if time.Now().Sub(sTime) > lockTimeout {
+				g.srv.Files.Delete(res.Files[0].Id).Do()
+
+				lockID = ""
+			}
+
 			continue
 		}
 

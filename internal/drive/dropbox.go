@@ -140,6 +140,9 @@ func (d *Dropbox) Lock() error {
 
 	lfile := getPath(lockFile)
 
+	sTime := time.Now()
+	lockHash := ""
+
 	// we need to create random content to lock file otherwise
 	// dropbox doesn't return conflict error
 	content := make([]byte, 8)
@@ -154,6 +157,22 @@ func (d *Dropbox) Lock() error {
 		_, err := d.client.Upload(uargs, bytes.NewReader(content))
 		if err != nil {
 			if strings.Contains(err.Error(), "conflict") {
+				md, err := d.GetFileMetadata(lockFile)
+				if err != nil {
+					continue
+				}
+
+				if lockHash != md.Hash {
+					lockHash = md.Hash
+					sTime = time.Now()
+				}
+
+				if time.Now().Sub(sTime) > lockTimeout {
+					d.DeleteFile(lfile)
+
+					lockHash = ""
+				}
+
 				continue
 			}
 

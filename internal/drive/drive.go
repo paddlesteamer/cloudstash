@@ -3,9 +3,13 @@ package drive
 import (
 	"fmt"
 	"io"
+	"time"
 )
 
-const lockFile = "cloudstash.lock"
+const (
+	lockFile    = "cloudstash.lock"
+	lockTimeout = 5 * time.Minute
+)
 
 // Metadata contains name, size (in bytes), and content hash of a remote file
 type Metadata struct {
@@ -38,8 +42,11 @@ type Drive interface {
 	MoveFile(name string, newName string) error
 
 	// Lock create lock file on remote drive
-	// If there is a lock file on remote drive already
-	// it should block until remote lock is removed
+	// If there is a lock file on remote drive already,
+	// it should block until the remote lock is removed
+	// If it takes longer than the lockTimeout, the lock should
+	// be removed manually by Lock() and whole process should
+	// start again from the beginning
 	Lock() error
 
 	// Unlock removes lock from remote drive
