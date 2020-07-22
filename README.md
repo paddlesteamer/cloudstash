@@ -36,4 +36,4 @@ $ go run ./cmd/cloudstash -m <another directory>
 ```
 
 ## Disclaimer
-Still in development, don't rely on it since there are many known bugs.
+Can cause file loss on heavy concurrent use (i.e. copying lots of files into same folder at the same time from different machines) but, otherwise, it will most probabaly hold.  
