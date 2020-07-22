@@ -1,10 +1,15 @@
 package drive
 
 import (
+	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files"
@@ -13,16 +18,19 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/config"
 )
 
+// Dropbox is holds necessary info about dropbox client
 type Dropbox struct {
 	client  files.Client
 	account users.Client
+
+	mu sync.Mutex
 }
 
 // NewDropboxClient creates a new Dropbox client.
 func NewDropboxClient(conf *config.DropboxCredentials) *Dropbox {
 	dbxConfig := dropbox.Config{
-		Token:    conf.AccessToken,
-		LogLevel: dropbox.LogDebug,
+		Token: conf.AccessToken,
+		// LogLevel: dropbox.LogDebug,
 	}
 
 	return &Dropbox{
@@ -31,11 +39,12 @@ func NewDropboxClient(conf *config.DropboxCredentials) *Dropbox {
 	}
 }
 
+// GetProviderName returns 'dropbox'
 func (d *Dropbox) GetProviderName() string {
 	return "dropbox"
 }
 
-// @todo: add descriptive comment
+// GetFile returns ReadCloser of remote file on dropbox
 func (d *Dropbox) GetFile(name string) (io.ReadCloser, error) {
 	name = getPath(name)
 
@@ -124,6 +133,83 @@ func (d *Dropbox) MoveFile(name string, newName string) error {
 	return nil
 }
 
+// Lock creates a lock file on dropbox
+// This ensures lock acquire requests from different
+// clients goes into race condition and is completely
+// thread/client safe
+func (d *Dropbox) Lock() error {
+	d.mu.Lock()
+
+	lfile := getPath(lockFile)
+
+	sTime := time.Now()
+	lockHash := ""
+
+	// we need to create random content to lock file otherwise
+	// dropbox doesn't return conflict error
+	content := make([]byte, 8)
+	if _, err := io.ReadFull(rand.Reader, content); err != nil {
+		// fall back to timestamp
+		binary.LittleEndian.PutUint64(content, uint64(time.Now().UnixNano()))
+	}
+
+	uargs := files.NewCommitInfo(lfile)
+
+	for {
+		_, err := d.client.Upload(uargs, bytes.NewReader(content))
+		if err != nil {
+			if strings.Contains(err.Error(), "conflict") {
+				md, err := d.GetFileMetadata(lockFile)
+				if err != nil {
+					time.Sleep(time.Second)
+					continue
+				}
+
+				if lockHash != md.Hash {
+					lockHash = md.Hash
+					sTime = time.Now()
+				}
+
+				if time.Now().Sub(sTime) > lockTimeout {
+					d.DeleteFile(lfile)
+
+					lockHash = ""
+				}
+
+				time.Sleep(time.Second)
+
+				continue
+			} else if strings.Contains(err.Error(), "too_many_write") {
+				time.Sleep(time.Second)
+				continue
+			}
+
+			d.mu.Unlock()
+			return fmt.Errorf("could not create lock file on dropbox: %v", err)
+		}
+
+		break
+	}
+
+	return nil
+}
+
+// Unlock deletes lock file from dropbox
+// and ignores not found error
+func (d *Dropbox) Unlock() error {
+	defer d.mu.Unlock()
+
+	if err := d.DeleteFile(lockFile); err != nil {
+		if err == common.ErrNotFound {
+			return nil
+		}
+
+		return fmt.Errorf("couldn't delete lock file: %v", err)
+	}
+
+	return nil
+}
+
 // ComputeHash computes content hash value according to
 // https://www.dropbox.com/developers/reference/content-hash
 func (d *Dropbox) ComputeHash(r io.Reader, hchan chan string, echan chan error) {
@@ -177,6 +263,7 @@ func (d *Dropbox) ComputeHash(r io.Reader, hchan chan string, echan chan error) 
 
 }
 
+// GetAvailableSpace returns available space in bytes
 func (d *Dropbox) GetAvailableSpace() (int64, error) {
 	res, err := d.account.GetSpaceUsage()
 	if err != nil {
