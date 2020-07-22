@@ -3,6 +3,11 @@
 
 Privacy wrapper for cloud storage(s)
 
+## What Does It Do
+It will create a folder under your home named **cloudstash** and share the files you put in this folder between Google Drive and Dropbox. It is an online filesystem, so it doesn't keep your files on your machine but you will see them as they are. The uploaded files are encrypted with 256 bit AES-CTR and that's why the cloud storages won't be able to access the contents of your files.
+
+You can use **cloudstash** in different machines, your changes will be synced. 
+
 ## Compilation
 Install libfuse-dev first:
 
@@ -36,4 +41,4 @@ $ go run ./cmd/cloudstash -m <another directory>
 ```
 
 ## Disclaimer
-Still in development, don't rely on it since there are many known bugs.
+Can cause file loss on heavy concurrent use (i.e. copying lots of files into same folder at the same time from different machines) but, otherwise, it will most probabaly hold.  
