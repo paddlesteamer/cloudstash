@@ -29,8 +29,8 @@ type Dropbox struct {
 // NewDropboxClient creates a new Dropbox client.
 func NewDropboxClient(conf *config.DropboxCredentials) *Dropbox {
 	dbxConfig := dropbox.Config{
-		Token:    conf.AccessToken,
-		LogLevel: dropbox.LogDebug,
+		Token: conf.AccessToken,
+		// LogLevel: dropbox.LogDebug,
 	}
 
 	return &Dropbox{
@@ -161,6 +161,7 @@ func (d *Dropbox) Lock() error {
 			if strings.Contains(err.Error(), "conflict") {
 				md, err := d.GetFileMetadata(lockFile)
 				if err != nil {
+					time.Sleep(time.Second)
 					continue
 				}
 
@@ -175,6 +176,11 @@ func (d *Dropbox) Lock() error {
 					lockHash = ""
 				}
 
+				time.Sleep(time.Second)
+
+				continue
+			} else if strings.Contains(err.Error(), "too_many_write") {
+				time.Sleep(time.Second)
 				continue
 			}
 
@@ -191,16 +197,16 @@ func (d *Dropbox) Lock() error {
 // Unlock deletes lock file from dropbox
 // and ignores not found error
 func (d *Dropbox) Unlock() error {
+	defer d.mu.Unlock()
+
 	if err := d.DeleteFile(lockFile); err != nil {
 		if err == common.ErrNotFound {
-			d.mu.Unlock()
 			return nil
 		}
 
 		return fmt.Errorf("couldn't delete lock file: %v", err)
 	}
 
-	d.mu.Unlock()
 	return nil
 }
 

@@ -223,6 +223,8 @@ func (g *GDrive) Lock() error {
 				lockID = ""
 			}
 
+			time.Sleep(time.Second)
+
 			continue
 		}
 
@@ -257,7 +259,7 @@ func (g *GDrive) Lock() error {
 			return fmt.Errorf("critical error: couldn't delete lock file: %v", err)
 		}
 
-		time.Sleep(time.Duration(rand.Int63n(400)+100) * time.Second)
+		time.Sleep(time.Duration(rand.Int63n(400)+100) * time.Millisecond)
 	}
 
 	return nil
@@ -265,16 +267,16 @@ func (g *GDrive) Lock() error {
 
 // Unlock removes lock file from google drive
 func (g *GDrive) Unlock() error {
+	defer g.mu.Unlock()
+
 	if err := g.srv.Files.Delete(g.lockID).Do(); err != nil {
 		if strings.Contains(err.Error(), "404") { // ugly hack to distinguish not found
-			g.mu.Unlock()
 			return nil
 		}
 
 		return fmt.Errorf("couldn't delete lock file: %v", err)
 	}
 
-	g.mu.Unlock()
 	return nil
 }
 
