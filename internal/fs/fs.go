@@ -23,12 +23,6 @@ func NewCloudStashFs(m *manager.Manager) *CloudStashFs {
 	return &CloudStashFs{manager: m}
 }
 
-func (fs *CloudStashFs) StatFs(ino int64) (*fuse.StatVFS, fuse.Status) {
-	log.Debug("statfs")
-
-	return nil, fuse.ENOSYS
-}
-
 func (fs *CloudStashFs) GetAttr(ino int64, info *fuse.FileInfo) (*fuse.InoAttr, fuse.Status) {
 	log.Debugf("getattr ino: %d", ino)
 
@@ -469,6 +463,74 @@ func (fs *CloudStashFs) Rename(oparent int64, oname string, tparent int64, tname
 	}
 
 	return fuse.OK
+}
+
+func (fs *CloudStashFs) Link(ino int64, newparent int64, name string) (*fuse.Entry, fuse.Status) {
+	log.Debugf("link ino: %d", ino)
+
+	return nil, fuse.EPERM
+}
+
+func (fs *CloudStashFs) Mknod(p int64, name string, mode int, rdev int) (*fuse.Entry, fuse.Status) {
+	log.Debugf("mknod name: %s", name)
+
+	return nil, fuse.EPERM
+}
+
+func (fs *CloudStashFs) ReadLink(ino int64) (string, fuse.Status) {
+	log.Debugf("readlink ino: %d", ino)
+
+	return "", fuse.EPERM
+}
+
+func (fs *CloudStashFs) Symlink(link string, p int64, name string) (*fuse.Entry, fuse.Status) {
+	log.Debugf("symlink name: %s", name)
+
+	return nil, fuse.EPERM
+}
+
+func (fs *CloudStashFs) StatFs(ino int64) (*fuse.StatVFS, fuse.Status) {
+	log.Debug("statfs")
+
+	return nil, fuse.ENOSYS
+}
+
+func (fs *CloudStashFs) Access(ino int64, mode int) fuse.Status {
+	log.Debugf("access ino: %d", ino)
+
+	return fuse.ENOSYS
+}
+
+func (fs *CloudStashFs) Destroy() {
+	log.Debug("destroy")
+}
+
+func (fs *CloudStashFs) FSync(ino int64, dataOnly bool, fi *fuse.FileInfo) fuse.Status {
+	log.Debugf("fsync ino: %d", ino)
+
+	return fuse.ENOSYS
+}
+
+func (fs *CloudStashFs) FSyncDir(ino int64, dataOnly bool, fi *fuse.FileInfo) fuse.Status {
+	log.Debugf("fsyncdir ino: %d", ino)
+
+	return fuse.ENOSYS
+}
+
+func (fs *CloudStashFs) Forget(ino int64, n int) {
+	log.Debugf("foreget ino: %d", ino)
+}
+
+func (fs *CloudStashFs) GetXAttr(ino int64, name string, out []byte) (int, fuse.Status) {
+	log.Debugf("getxattr ino: %d", ino)
+
+	return 0, fuse.ENOSYS
+}
+
+func (fs *CloudStashFs) GetXAttrSize(ino int64, name string) (int, fuse.Status) {
+	log.Debugf("getxattrsize ino: %d", ino)
+
+	return 0, fuse.ENOSYS
 }
 
 func newInode(md *sqlite.Metadata) *fuse.InoAttr {
