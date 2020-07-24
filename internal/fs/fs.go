@@ -489,12 +489,6 @@ func (fs *CloudStashFs) Symlink(link string, p int64, name string) (*fuse.Entry,
 	return nil, fuse.EPERM
 }
 
-func (fs *CloudStashFs) StatFs(ino int64) (*fuse.StatVFS, fuse.Status) {
-	log.Debug("statfs")
-
-	return nil, fuse.ENOSYS
-}
-
 func (fs *CloudStashFs) Access(ino int64, mode int) fuse.Status {
 	log.Debugf("access ino: %d", ino)
 
@@ -531,6 +525,42 @@ func (fs *CloudStashFs) GetXAttrSize(ino int64, name string) (int, fuse.Status) 
 	log.Debugf("getxattrsize ino: %d", ino)
 
 	return 0, fuse.ENOSYS
+}
+
+func (fs *CloudStashFs) ListXAttrs(ino int64) ([]string, fuse.Status) {
+	log.Debugf("listxattrs ino: %d", ino)
+
+	return nil, fuse.ENOSYS
+}
+
+func (fs *CloudStashFs) Release(ino int64, fi *fuse.FileInfo) fuse.Status {
+	log.Debugf("release ino: $d", ino)
+
+	return fuse.ENOSYS
+}
+
+func (fs *CloudStashFs) ReleaseDir(ino int64, fi *fuse.FileInfo) fuse.Status {
+	log.Debugf("releasedir ino: $d", ino)
+
+	return fuse.ENOSYS
+}
+
+func (fs *CloudStashFs) RemoveXAttr(ino int64, name string) fuse.Status {
+	log.Debugf("removexattr ino: %d", ino)
+
+	return fuse.ENOSYS
+}
+
+func (fs *CloudStashFs) SetXAttr(ino int64, name string, value []byte, flags int) fuse.Status {
+	log.Debugf("setxattr ino: %d", ino)
+
+	return fuse.ENOSYS
+}
+
+func (fs *CloudStashFs) StatFs(ino int64) (*fuse.StatVFS, fuse.Status) {
+	log.Debug("statfs")
+
+	return nil, fuse.ENOSYS
 }
 
 func newInode(md *sqlite.Metadata) *fuse.InoAttr {
