@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/config"
@@ -63,10 +64,8 @@ func main() {
 	// unmount when SIGINT, SIGTERM or SIGQUIT is received
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go func(ch chan os.Signal, mountpoint string) {
-		_ = <-ch
-		fuse.UMount(mountpoint)
-	}(signalCh, cfg.MountPoint)
+
+	go handleSignal(signalCh, cfg.MountPoint)
 
 	// mount the filesystem
 	fs := fs.NewCloudStashFs(m)
@@ -134,4 +133,30 @@ func findDBDrive(drives []drive.Drive) (drive.Drive, error) {
 	}
 
 	return nil, common.ErrNotFound
+}
+
+func handleSignal(ch chan os.Signal, mountpoint string) {
+	_ = <-ch
+
+	done := make(chan bool)
+	umount(mountpoint, done)
+
+	for {
+		time.Sleep(5 * time.Second)
+
+		select {
+		case _ = <-done:
+			return
+		default:
+			log.Warning("mounted device appears to be busy...")
+			continue
+		}
+	}
+
+}
+
+func umount(mountpoint string, ch chan bool) {
+	fuse.UMount(mountpoint)
+
+	ch <- true
 }
