@@ -20,7 +20,6 @@ import (
 // It is used by the `fs` package
 type Manager struct {
 	drives  []drive.Drive
-	key     string
 	db      *database
 	cache   *cache.Cache
 	tracker *cache.Cache
@@ -29,10 +28,9 @@ type Manager struct {
 
 // NewManager creates a new Manager struct with provided
 // parameters and starts background processes
-func NewManager(drives []drive.Drive, dbDrv drive.Drive, cipher *crypto.Cipher, key string) (*Manager, error) {
+func NewManager(drives []drive.Drive, dbDrv drive.Drive, cipher *crypto.Cipher) (*Manager, error) {
 	m := &Manager{
 		drives:  drives,
-		key:     key,
 		cache:   newCache(),
 		tracker: newTracker(),
 		cipher:  cipher,

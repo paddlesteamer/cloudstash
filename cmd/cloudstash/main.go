@@ -53,7 +53,7 @@ func main() {
 
 	cipher := crypto.NewCipher(cfg.EncryptionKey)
 
-	m, err := manager.NewManager(drives, dbDrv, cipher, cfg.EncryptionKey)
+	m, err := manager.NewManager(drives, dbDrv, cipher)
 	if err != nil {
 		log.Errorf("couldn't initialize manager: %v", err)
 		return
