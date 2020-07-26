@@ -465,6 +465,18 @@ func (fs *CloudStashFs) Rename(oparent int64, oname string, tparent int64, tname
 	return fuse.OK
 }
 
+func (fs *CloudStashFs) Release(ino int64, fi *fuse.FileInfo) fuse.Status {
+	log.Debugf("release ino: %d", ino)
+
+	return fuse.OK
+}
+
+func (fs *CloudStashFs) ReleaseDir(ino int64, fi *fuse.FileInfo) fuse.Status {
+	log.Debugf("releasedir ino: %d", ino)
+
+	return fuse.OK
+}
+
 func (fs *CloudStashFs) Link(ino int64, newparent int64, name string) (*fuse.Entry, fuse.Status) {
 	log.Debugf("link ino: %d", ino)
 
@@ -531,18 +543,6 @@ func (fs *CloudStashFs) ListXAttrs(ino int64) ([]string, fuse.Status) {
 	log.Debugf("listxattrs ino: %d", ino)
 
 	return nil, fuse.ENOSYS
-}
-
-func (fs *CloudStashFs) Release(ino int64, fi *fuse.FileInfo) fuse.Status {
-	log.Debugf("release ino: %d", ino)
-
-	return fuse.ENOSYS
-}
-
-func (fs *CloudStashFs) ReleaseDir(ino int64, fi *fuse.FileInfo) fuse.Status {
-	log.Debugf("releasedir ino: %d", ino)
-
-	return fuse.ENOSYS
 }
 
 func (fs *CloudStashFs) RemoveXAttr(ino int64, name string) fuse.Status {
