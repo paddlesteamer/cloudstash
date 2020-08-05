@@ -465,6 +465,32 @@ func (fs *CloudStashFs) Rename(oparent int64, oname string, tparent int64, tname
 	return fuse.OK
 }
 
+func (fs *CloudStashFs) StatFS(ino int64) (*fuse.StatVFS, fuse.Status) {
+	log.Debug("statfs")
+
+	blockSize := int64(1024)
+	blocks := fs.manager.GetTotalAvailableSpace()/1024 + 1
+
+	fileCount, err := fs.manager.GetFileCount()
+	if err != nil {
+		log.Errorf("couldn't get file count: %v", err)
+
+		return nil, fuse.EIO
+	}
+
+	return &fuse.StatVFS{
+		BlockSize:  blockSize,
+		Blocks:     blocks,
+		BlocksFree: blocks,
+
+		Files:     fileCount,
+		FilesFree: 0,
+
+		Fsid:    1,
+		NameMax: 255,
+	}, fuse.OK
+}
+
 func (fs *CloudStashFs) Release(ino int64, fi *fuse.FileInfo) fuse.Status {
 	log.Debugf("release ino: %d", ino)
 
@@ -555,32 +581,6 @@ func (fs *CloudStashFs) SetXAttr(ino int64, name string, value []byte, flags int
 	log.Debugf("setxattr ino: %d", ino)
 
 	return fuse.ENOSYS
-}
-
-func (fs *CloudStashFs) StatFS(ino int64) (*fuse.StatVFS, fuse.Status) {
-	log.Debug("statfs")
-
-	blockSize := int64(1024)
-	blocks := fs.manager.GetTotalAvailableSpace()/1024 + 1
-
-	fileCount, err := fs.manager.GetFileCount()
-	if err != nil {
-		log.Errorf("couldn't get file count: %v", err)
-
-		return nil, fuse.EIO
-	}
-
-	return &fuse.StatVFS{
-		BlockSize:  blockSize,
-		Blocks:     blocks,
-		BlocksFree: blocks,
-
-		Files:     fileCount,
-		FilesFree: 0,
-
-		Fsid:    1,
-		NameMax: 255,
-	}, fuse.OK
 }
 
 func newInode(md *sqlite.Metadata) *fuse.InoAttr {
