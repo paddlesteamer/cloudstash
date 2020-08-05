@@ -557,10 +557,20 @@ func (fs *CloudStashFs) SetXAttr(ino int64, name string, value []byte, flags int
 	return fuse.ENOSYS
 }
 
-func (fs *CloudStashFs) StatFs(ino int64) (*fuse.StatVFS, fuse.Status) {
+func (fs *CloudStashFs) StatFS(ino int64) (*fuse.StatVFS, fuse.Status) {
 	log.Debug("statfs")
 
-	return nil, fuse.ENOSYS
+	blockSize := int64(1024)
+	blocks := fs.manager.GetTotalAvailableSpace()/1024 + 1
+
+	return &fuse.StatVFS{
+		BlockSize:  blockSize,
+		Blocks:     blocks,
+		BlocksFree: blocks,
+
+		Fsid:    1,
+		NameMax: 255,
+	}, fuse.ENOSYS
 }
 
 func newInode(md *sqlite.Metadata) *fuse.InoAttr {

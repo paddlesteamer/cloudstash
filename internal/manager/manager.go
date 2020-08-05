@@ -392,6 +392,23 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*sqlite.Metad
 	return md, nil
 }
 
+// GetTotalAvailableSpace returns total available space in all drives
+func (m *Manager) GetTotalAvailableSpace() int64 {
+	var tSpace int64 = 0
+
+	for _, drv := range m.drives {
+		space, err := drv.GetAvailableSpace()
+		if err != nil {
+			log.Warningf("couldn't get available space for %s: %v, ignoring...", drv.GetProviderName(), err)
+			continue
+		}
+
+		tSpace += space
+	}
+
+	return tSpace
+}
+
 func (m *Manager) getSqliteClient() (*sqlite.Client, error) {
 	return sqlite.NewClient(m.db.path)
 }
@@ -459,7 +476,6 @@ func (m *Manager) deleteRemoteFile(md *sqlite.Metadata) {
 	}
 }
 
-// @TODO: select drive according to available space
 func (m *Manager) selectDrive() drive.Drive {
 	var max int64 = 0
 	idx := 0
