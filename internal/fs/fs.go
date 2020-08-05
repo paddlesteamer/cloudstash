@@ -563,10 +563,20 @@ func (fs *CloudStashFs) StatFS(ino int64) (*fuse.StatVFS, fuse.Status) {
 	blockSize := int64(1024)
 	blocks := fs.manager.GetTotalAvailableSpace()/1024 + 1
 
+	fileCount, err := fs.manager.GetFileCount()
+	if err != nil {
+		log.Errorf("couldn't get file count: %v", err)
+
+		return nil, fuse.EIO
+	}
+
 	return &fuse.StatVFS{
 		BlockSize:  blockSize,
 		Blocks:     blocks,
 		BlocksFree: blocks,
+
+		Files:     fileCount,
+		FilesFree: 0,
 
 		Fsid:    1,
 		NameMax: 255,

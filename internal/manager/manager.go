@@ -409,6 +409,21 @@ func (m *Manager) GetTotalAvailableSpace() int64 {
 	return tSpace
 }
 
+// GetFileCount returns the count of files in the database
+func (m *Manager) GetFileCount() (int64, error) {
+	db, err := m.getSqliteClient()
+	if err != nil {
+		return 0, fmt.Errorf("couldn't connect to database: %v", err)
+	}
+
+	fc, err := db.GetFileCount()
+	if err != nil {
+		return 0, fmt.Errorf("couldn't get file count from db: %v", err)
+	}
+
+	return fc, nil
+}
+
 func (m *Manager) getSqliteClient() (*sqlite.Client, error) {
 	return sqlite.NewClient(m.db.path)
 }
