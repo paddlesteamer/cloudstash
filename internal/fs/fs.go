@@ -580,7 +580,7 @@ func (fs *CloudStashFs) StatFS(ino int64) (*fuse.StatVFS, fuse.Status) {
 
 		Fsid:    1,
 		NameMax: 255,
-	}, fuse.ENOSYS
+	}, fuse.OK
 }
 
 func newInode(md *sqlite.Metadata) *fuse.InoAttr {

@@ -24,6 +24,8 @@ type Manager struct {
 	cache   *cache.Cache
 	tracker *cache.Cache
 	cipher  *crypto.Cipher
+
+	availableSpace int64
 }
 
 // NewManager creates a new Manager struct with provided
@@ -394,6 +396,10 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*sqlite.Metad
 
 // GetTotalAvailableSpace returns total available space in all drives
 func (m *Manager) GetTotalAvailableSpace() int64 {
+	if m.availableSpace > 0 {
+		return m.availableSpace
+	}
+
 	var tSpace int64 = 0
 
 	for _, drv := range m.drives {
@@ -405,6 +411,8 @@ func (m *Manager) GetTotalAvailableSpace() int64 {
 
 		tSpace += space
 	}
+
+	m.availableSpace = tSpace
 
 	return tSpace
 }
