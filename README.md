@@ -3,13 +3,14 @@
 
 Privacy wrapper for cloud storage(s)
 
-## What Does It Do
-It will create a folder under your home named **cloudstash** and share the files you put in this folder between Google Drive and Dropbox. It is an online filesystem, so it doesn't keep your files on your machine but you will see them as they are. The uploaded files are encrypted with 256 bit AES-CTR and that's why the cloud storages won't be able to access the contents of your files.
-
-You can use **cloudstash** in different machines, your changes will be synced. 
+## How It Works
+* It automatically uploads any files you may put in the `$HOME/cloudstash` directory (automatically created on first run) to either Google Drive or Dropbox, depending on your configuration and the storage availability.
+* Cloud storage providers won't be able to access the contents of your files, because they are encrypted with AES-256 before they are uploaded.
+* It's an online filesystem; it doesn't store any files on your machine but you will see them as if they are.
+* You can use it simultaneously from multiple machines, your changes will be synced.
 
 ## Compilation
-### For Ubuntu/Debian
+### Ubuntu/Debian
 Install `libfuse-dev` first:
 
 ```sh
@@ -22,15 +23,16 @@ Then compile with `go build`
 $ go build ./cmd/cloudstash
 ```
 
-### For MacOSX
-Download and install `osxfuse` from  [here](https://osxfuse.github.io/).  It is enough to install the latest version of `FUSE for macOS`.  Then compile with `go build`
+### MacOSX
+Download and install the latest version of `FUSE for macOS` from [here](https://osxfuse.github.io/).
 
+Then compile with `go build`
 ```sh
 $ go build ./cmd/cloudstash
 ```
 
 ## Usage
-Simply run the binary:
+Simply build & run the binary:
 
 ```sh
 $ go run ./cmd/cloudstash
