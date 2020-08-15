@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/paddlesteamer/go-cache"
+	"github.com/paddlesteamer/zcache"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -34,8 +34,8 @@ const (
 	cacheForever    = 0
 )
 
-func newCache() *cache.Cache {
-	c := cache.New(cacheExpiration, cleanupInterval)
+func newCache() *zcache.Cache {
+	c := zcache.New(cacheExpiration, cleanupInterval)
 	c.OnEvicted(expirationHandler)
 	return c
 }
@@ -56,12 +56,12 @@ type trackerEntry struct {
 
 const idleTimeThreshold time.Duration = 10 * time.Second
 
-func accessFilter(key string, it *cache.Item) bool {
+func accessFilter(key string, it zcache.Item) (bool, bool) {
 	entry := it.Object.(trackerEntry)
 
-	return time.Now().Sub(entry.accessTime) > idleTimeThreshold
+	return time.Now().Sub(entry.accessTime) > idleTimeThreshold, false
 }
 
-func newTracker() *cache.Cache {
-	return cache.New(cache.NoExpiration, cache.NoExpiration)
+func newTracker() *zcache.Cache {
+	return zcache.New(zcache.NoExpiration, zcache.NoExpiration)
 }
