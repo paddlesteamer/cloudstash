@@ -325,6 +325,53 @@ func (c *Client) GetRowCount() (int, error) {
 	return count, nil
 }
 
+// GetFileCount returns number of rows of type common.DrvFile
+func (c *Client) GetFileCount() (int64, error) {
+	query, err := c.db.Prepare("SELECT count(*) FROM files where type=?")
+	if err != nil {
+		return 0, fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	row, err := query.Query(common.DrvFile)
+	if err != nil {
+		return 0, fmt.Errorf("there is an error in query: %v", err)
+	}
+	defer row.Close()
+
+	var count int64
+
+	row.Next() // no need to check return value
+
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("couldn't get file count: %v", err)
+	}
+
+	return count, nil
+}
+
+func (c *Client) GetTotalSize() (int64, error) {
+	query, err := c.db.Prepare("SELECT sum(size) FROM files where type=?")
+	if err != nil {
+		return 0, fmt.Errorf("couldn't prepare statement: %v", err)
+	}
+
+	row, err := query.Query(common.DrvFile)
+	if err != nil {
+		return 0, fmt.Errorf("there is an error in query: %v", err)
+	}
+	defer row.Close()
+
+	var size int64
+
+	row.Next() // no need to check return value
+
+	if err := row.Scan(&size); err != nil {
+		return 0, fmt.Errorf("couldn't get sum of sizes: %v", err)
+	}
+
+	return size, nil
+}
+
 // Insert inserts metadata to database
 func (c *Client) Insert(md *Metadata) error {
 	query, err := c.db.Prepare("INSERT INTO files(name, url, size, mode, parent, type, hash) VALUES(?, ?, ?, ?, ?, ?, ?)")

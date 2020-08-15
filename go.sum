@@ -103,8 +103,8 @@ github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWb
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/paddlesteamer/go-cache v2.1.1-0.20200709203439-8516d02047f9+incompatible h1:TS7NYWGNqXxtaxunWSV2Y95pSmYZyz0N/Ukdqx3RcE4=
 github.com/paddlesteamer/go-cache v2.1.1-0.20200709203439-8516d02047f9+incompatible/go.mod h1:fyaSBWk3R0sq+6Xghk6UeYARK6jfDP45tkC+eznikvo=
-github.com/paddlesteamer/go-fuse-c v0.7.2 h1:t03etmvN8Lmj5OlGpZuHTRqqxXaKIGaorobcZLWsRCg=
-github.com/paddlesteamer/go-fuse-c v0.7.2/go.mod h1:pSjj58JtUQ+6TTqKJRm9+ahtARtKeRGih1MIW/XwDvk=
+github.com/paddlesteamer/go-fuse-c v0.7.3-0.20200815102750-47f7a096bb0b h1:G2l/oJAasibhtAj5k+mY4Ol01dKpKfAeEp+ywEbJSxg=
+github.com/paddlesteamer/go-fuse-c v0.7.3-0.20200815102750-47f7a096bb0b/go.mod h1:pSjj58JtUQ+6TTqKJRm9+ahtARtKeRGih1MIW/XwDvk=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=

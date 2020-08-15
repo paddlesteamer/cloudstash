@@ -20,19 +20,19 @@ import (
 // It is used by the `fs` package
 type Manager struct {
 	drives  []drive.Drive
-	key     string
 	db      *database
 	cache   *cache.Cache
 	tracker *cache.Cache
 	cipher  *crypto.Cipher
+
+	availableSpace int64
 }
 
 // NewManager creates a new Manager struct with provided
 // parameters and starts background processes
-func NewManager(drives []drive.Drive, dbDrv drive.Drive, cipher *crypto.Cipher, key string) (*Manager, error) {
+func NewManager(drives []drive.Drive, dbDrv drive.Drive, cipher *crypto.Cipher) (*Manager, error) {
 	m := &Manager{
 		drives:  drives,
-		key:     key,
 		cache:   newCache(),
 		tracker: newTracker(),
 		cipher:  cipher,
@@ -394,6 +394,44 @@ func (m *Manager) CreateFile(parent int64, name string, mode int) (*sqlite.Metad
 	return md, nil
 }
 
+// GetTotalAvailableSpace returns total available space in all drives
+func (m *Manager) GetTotalAvailableSpace() int64 {
+	if m.availableSpace > 0 {
+		return m.availableSpace
+	}
+
+	var tSpace int64 = 0
+
+	for _, drv := range m.drives {
+		space, err := drv.GetAvailableSpace()
+		if err != nil {
+			log.Warningf("couldn't get available space for %s: %v, ignoring...", drv.GetProviderName(), err)
+			continue
+		}
+
+		tSpace += space
+	}
+
+	m.availableSpace = tSpace
+
+	return tSpace
+}
+
+// GetFileCount returns the count of files in the database
+func (m *Manager) GetFileCount() (int64, error) {
+	db, err := m.getSqliteClient()
+	if err != nil {
+		return 0, fmt.Errorf("couldn't connect to database: %v", err)
+	}
+
+	fc, err := db.GetFileCount()
+	if err != nil {
+		return 0, fmt.Errorf("couldn't get file count from db: %v", err)
+	}
+
+	return fc, nil
+}
+
 func (m *Manager) getSqliteClient() (*sqlite.Client, error) {
 	return sqlite.NewClient(m.db.path)
 }
@@ -461,7 +499,6 @@ func (m *Manager) deleteRemoteFile(md *sqlite.Metadata) {
 	}
 }
 
-// @TODO: select drive according to available space
 func (m *Manager) selectDrive() drive.Drive {
 	var max int64 = 0
 	idx := 0
