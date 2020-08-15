@@ -9,13 +9,21 @@ It will create a folder under your home named **cloudstash** and share the files
 You can use **cloudstash** in different machines, your changes will be synced. 
 
 ## Compilation
-Install libfuse-dev first:
+### For Ubuntu/Debian
+Install `libfuse-dev` first:
 
 ```sh
 $ apt install libfuse-dev
 ```
 
 Then compile with `go build`
+
+```sh
+$ go build ./cmd/cloudstash
+```
+
+### For MacOSX
+Download and install `osxfuse` from  [here](https://osxfuse.github.io/).  It is enough to install the latest version of `FUSE for macOS`.  Then compile with `go build`
 
 ```sh
 $ go build ./cmd/cloudstash
@@ -41,4 +49,5 @@ $ go run ./cmd/cloudstash -m <another directory>
 ```
 
 ## Disclaimer
-Can cause file loss on heavy concurrent use (i.e. copying lots of files into same folder at the same time from different machines) but, otherwise, it will most probabaly hold.  
+Can cause file loss on heavy concurrent use (i.e. copying lots of files into same folder at the same time from different machines) but, otherwise, it will most probabaly hold.
+
