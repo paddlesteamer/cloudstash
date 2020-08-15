@@ -9,7 +9,7 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/common"
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
-	"github.com/paddlesteamer/go-cache"
+	"github.com/paddlesteamer/zcache"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -157,13 +157,13 @@ func updateCache(m *Manager) {
 		log.Errorf("couldn't connect to database: %v", err)
 
 		// fallback to flush all
-		m.cache.Flush()
+		m.cache.DeleteAll()
 
 		return
 	}
 	defer db.Close()
 
-	m.cache.FlushWithFilter(func(key string, it *cache.Item) bool {
+	m.cache.DeleteFunc(func(key string, it zcache.Item) (bool, bool) {
 		entry := it.Object.(cacheEntry)
 
 		md, err := db.Get(common.ToInt64(key))
@@ -174,10 +174,10 @@ func updateCache(m *Manager) {
 			if err := os.Remove(entry.path); err != nil {
 				log.Warningf("couldn't remove file '%s' from filesytem: %v", entry.path, err)
 			}
-			return true
+			return true, false
 		}
 
-		return entry.hash != md.Hash
+		return entry.hash != md.Hash, false
 	})
 }
 
@@ -197,12 +197,12 @@ func processLocalChanges(m *Manager) {
 // if forceAll is provided, it ignores access time
 // and uploads all files in the tracker
 func processChanges(m *Manager, flag int) {
-	var items map[string]*cache.Item
+	var items map[string]zcache.Item
 
 	if flag == forceAll {
-		items = m.tracker.Flush()
+		items = m.tracker.DeleteAll()
 	} else {
-		items = m.tracker.FlushWithFilter(accessFilter)
+		items = m.tracker.DeleteFunc(accessFilter)
 	}
 
 	if len(items) == 0 {

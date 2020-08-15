@@ -11,7 +11,7 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
 	"github.com/paddlesteamer/cloudstash/internal/drive"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
-	"github.com/paddlesteamer/go-cache"
+	"github.com/paddlesteamer/zcache"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -150,7 +150,7 @@ func (db *database) clean() {
 // - if a file is removed from remote database, it is added again
 // - if a new file is added to remote database, it is added to local database too
 // - remote database's inode numbers are used in local db in order to get synchronized with other clients
-func (db *database) merge(path string, cache *cache.Cache) error {
+func (db *database) merge(path string, cache *zcache.Cache) error {
 	// backup local copy just in case
 	backup, err := db.backupDatabase()
 	if err != nil {
@@ -181,7 +181,7 @@ func (db *database) merge(path string, cache *cache.Cache) error {
 	return nil
 }
 
-func merge(local *sqlite.Client, remote *sqlite.Client, cache *cache.Cache) error {
+func merge(local *sqlite.Client, remote *sqlite.Client, cache *zcache.Cache) error {
 	defer local.Close()
 	defer remote.Close()
 
@@ -244,7 +244,7 @@ func merge(local *sqlite.Client, remote *sqlite.Client, cache *cache.Cache) erro
 	return nil
 }
 
-func processChunk(mdList []sqlite.Metadata, local *sqlite.Client, cache *cache.Cache, wg *sync.WaitGroup, mu *sync.RWMutex, errChan chan error) {
+func processChunk(mdList []sqlite.Metadata, local *sqlite.Client, cache *zcache.Cache, wg *sync.WaitGroup, mu *sync.RWMutex, errChan chan error) {
 	wg.Add(1)
 	defer wg.Done()
 

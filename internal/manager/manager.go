@@ -10,7 +10,7 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
 	"github.com/paddlesteamer/cloudstash/internal/drive"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
-	"github.com/paddlesteamer/go-cache"
+	"github.com/paddlesteamer/zcache"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -21,8 +21,8 @@ import (
 type Manager struct {
 	drives  []drive.Drive
 	db      *database
-	cache   *cache.Cache
-	tracker *cache.Cache
+	cache   *zcache.Cache
+	tracker *zcache.Cache
 	cipher  *crypto.Cipher
 
 	availableSpace int64
@@ -71,7 +71,7 @@ func NewManager(drives []drive.Drive, dbDrv drive.Drive, cipher *crypto.Cipher) 
 func (m *Manager) Clean() {
 	processChanges(m, forceAll)
 
-	m.cache.Flush()
+	m.cache.DeleteAll()
 
 	m.db.clean()
 }
@@ -130,7 +130,7 @@ func (m *Manager) UpdateMetadataFromCache(inode int64) error {
 	m.db.wLock()
 	defer m.db.wUnlock()
 
-	e, found := m.cache.GetWithExpirationUpdate(common.ToString(inode), cacheExpiration)
+	e, found := m.cache.Touch(common.ToString(inode), cacheExpiration)
 	if !found {
 		return fmt.Errorf("the file hasn't beed cached")
 	}
@@ -300,7 +300,7 @@ func (m *Manager) RemoveFile(md *sqlite.Metadata) error {
 func (m *Manager) OpenFile(md *sqlite.Metadata, flag int) (*os.File, error) {
 	var path string
 
-	e, found := m.cache.GetWithExpirationUpdate(common.ToString(md.Inode), cacheExpiration)
+	e, found := m.cache.Touch(common.ToString(md.Inode), cacheExpiration)
 	if !found {
 		m.cache.Set(common.ToString(md.Inode), newCacheEntry("", fileDownloading, ""), cacheExpiration)
 
