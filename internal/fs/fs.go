@@ -42,6 +42,12 @@ func (fs *CloudStashFs) GetAttr(ino int64, info *fuse.FileInfo) (*fuse.InoAttr, 
 func (fs *CloudStashFs) SetAttr(ino int64, attr *fuse.InoAttr, mask fuse.SetAttrMask, fi *fuse.FileInfo) (*fuse.InoAttr, fuse.Status) {
 	log.Debugf("setattr ino: %d", ino)
 
+	if mask&fuse.SET_ATTR_MODE == 0 {
+		log.Warning("only mode change is supported")
+
+		return nil, fuse.ENOSYS
+	}
+
 	md, err := fs.manager.GetMetadata(ino)
 	if err != nil {
 		if err == common.ErrNotFound {
@@ -203,7 +209,7 @@ func (fs *CloudStashFs) Rmdir(parent int64, name string) fuse.Status {
 }
 
 func (fs *CloudStashFs) Create(parent int64, name string, mode int, fi *fuse.FileInfo) (*fuse.Entry, fuse.Status) {
-	log.Debugf("create parent: %d name: %s", parent, name)
+	log.Debugf("create parent: %d name: %s, mode: %#o", parent, name, mode)
 
 	if !isValidName(name) {
 		return nil, fuse.EPERM
@@ -536,13 +542,13 @@ func (fs *CloudStashFs) Forget(ino int64, n int) {
 }
 
 func (fs *CloudStashFs) GetXAttr(ino int64, name string, out []byte) (int, fuse.Status) {
-	log.Debugf("getxattr ino: %d", ino)
+	log.Debugf("getxattr ino: %d, name: %s", ino, name)
 
 	return 0, fuse.ENOSYS
 }
 
 func (fs *CloudStashFs) GetXAttrSize(ino int64, name string) (int, fuse.Status) {
-	log.Debugf("getxattrsize ino: %d", ino)
+	log.Debugf("getxattrsize ino: %d, name: %s", ino, name)
 
 	return 0, fuse.ENOSYS
 }
@@ -554,13 +560,13 @@ func (fs *CloudStashFs) ListXAttrs(ino int64) ([]string, fuse.Status) {
 }
 
 func (fs *CloudStashFs) RemoveXAttr(ino int64, name string) fuse.Status {
-	log.Debugf("removexattr ino: %d", ino)
+	log.Debugf("removexattr ino: %d, name: %s", ino, name)
 
 	return fuse.ENOSYS
 }
 
 func (fs *CloudStashFs) SetXAttr(ino int64, name string, value []byte, flags int) fuse.Status {
-	log.Debugf("setxattr ino: %d", ino)
+	log.Debugf("setxattr ino: %d, name: %s", ino, name)
 
 	return fuse.ENOSYS
 }
