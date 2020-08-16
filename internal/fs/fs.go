@@ -42,7 +42,7 @@ func (fs *CloudStashFs) GetAttr(ino int64, info *fuse.FileInfo) (*fuse.InoAttr, 
 func (fs *CloudStashFs) SetAttr(ino int64, attr *fuse.InoAttr, mask fuse.SetAttrMask, fi *fuse.FileInfo) (*fuse.InoAttr, fuse.Status) {
 	log.Debugf("setattr ino: %d", ino)
 
-	if mask & fuse.SET_ATTR_MODE == 0 {
+	if mask&fuse.SET_ATTR_MODE == 0 {
 		log.Warning("only mode change is supported")
 
 		return nil, fuse.ENOSYS
