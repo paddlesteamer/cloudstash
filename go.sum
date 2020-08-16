@@ -101,8 +101,8 @@ github.com/mattn/go-sqlite3 v2.0.3+incompatible h1:gXHsfypPkaMZrKbD5209QV9jbUTJK
 github.com/mattn/go-sqlite3 v2.0.3+incompatible/go.mod h1:FPy6KqzDD04eiIsT53CuJW3U88zkxoIYsOqkbpncsNc=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
-github.com/paddlesteamer/go-fuse-c v0.7.3-0.20200815102750-47f7a096bb0b h1:G2l/oJAasibhtAj5k+mY4Ol01dKpKfAeEp+ywEbJSxg=
-github.com/paddlesteamer/go-fuse-c v0.7.3-0.20200815102750-47f7a096bb0b/go.mod h1:pSjj58JtUQ+6TTqKJRm9+ahtARtKeRGih1MIW/XwDvk=
+github.com/paddlesteamer/go-fuse-c v0.7.3-0.20200816144923-7710a7774ae9 h1:CPmrcjxZPuwKdioQsqdQAwMewCJ2xNCJpqA07WloEEc=
+github.com/paddlesteamer/go-fuse-c v0.7.3-0.20200816144923-7710a7774ae9/go.mod h1:pSjj58JtUQ+6TTqKJRm9+ahtARtKeRGih1MIW/XwDvk=
 github.com/paddlesteamer/zcache v0.0.0-20200815115200-67ae29ffcfb1 h1:UTYP662ih4dX1UAQWDvLCumC9Ern/avrzglHSZwvB8M=
 github.com/paddlesteamer/zcache v0.0.0-20200815115200-67ae29ffcfb1/go.mod h1:KwFPkPha8xjtFxPVGsP3AnN6KHltQXP9JJ59vGLpt2U=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
