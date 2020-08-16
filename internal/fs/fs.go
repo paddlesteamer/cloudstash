@@ -468,28 +468,9 @@ func (fs *CloudStashFs) Rename(oparent int64, oname string, tparent int64, tname
 func (fs *CloudStashFs) StatFS(ino int64) (*fuse.StatVFS, fuse.Status) {
 	log.Debug("statfs")
 
-	return nil, fuse.EIO
-	// blockSize := int64(1024)
-	// blocks := fs.manager.GetTotalAvailableSpace()/1024 + 1
-
-	// fileCount, err := fs.manager.GetFileCount()
-	// if err != nil {
-	// 	log.Errorf("couldn't get file count: %v", err)
-
-	// 	return nil, fuse.EIO
-	// }
-
-	// return &fuse.StatVFS{
-	// 	BlockSize:  blockSize,
-	// 	Blocks:     blocks,
-	// 	BlocksFree: blocks-1,
-
-	// 	Files:     fileCount,
-	// 	FilesFree: 0,
-
-	// 	Fsid:    1,
-	// 	NameMax: 255,
-	// }, fuse.OK
+	return &fuse.StatVFS{
+		NameMax: 255,
+	}, fuse.OK
 }
 
 func (fs *CloudStashFs) Release(ino int64, fi *fuse.FileInfo) fuse.Status {
