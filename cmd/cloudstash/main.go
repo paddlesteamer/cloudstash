@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -63,13 +64,19 @@ func main() {
 
 	// unmount when SIGINT, SIGTERM or SIGQUIT is received
 	signalCh := make(chan os.Signal, 1)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	go handleSignal(signalCh, cfg.MountPoint)
+	go handleSignal(signalCh, &wg, cfg.MountPoint)
 
 	// mount the filesystem
 	fs := fs.NewCloudStashFs(m)
 	fuse.MountAndRun([]string{os.Args[0], cfg.MountPoint}, fs)
+
+	// wait for signal handler to return
+	wg.Wait()
 }
 
 // parseFlags parses the command-line flags.
@@ -135,7 +142,9 @@ func findDBDrive(drives []drive.Drive) (drive.Drive, error) {
 	return nil, common.ErrNotFound
 }
 
-func handleSignal(ch chan os.Signal, mountpoint string) {
+func handleSignal(ch chan os.Signal, wg *sync.WaitGroup, mountpoint string) {
+	defer wg.Done()
+
 	_ = <-ch
 
 	done := make(chan bool)
