@@ -9,7 +9,6 @@ require (
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/paddlesteamer/go-fuse-c v0.7.3-0.20200816144923-7710a7774ae9
-	github.com/paddlesteamer/zcache v0.0.0-20200815115200-67ae29ffcfb1
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.6.1 // indirect
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
@@ -19,4 +18,5 @@ require (
 	google.golang.org/api v0.29.0
 	google.golang.org/appengine v1.6.6 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
+	zgo.at/zcache v0.0.0-20200828020008-df91dc43c1c8
 )

@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/paddlesteamer/zcache"
+	"zgo.at/zcache"
 
 	log "github.com/sirupsen/logrus"
 )

@@ -11,7 +11,7 @@ import (
 	"github.com/paddlesteamer/cloudstash/internal/crypto"
 	"github.com/paddlesteamer/cloudstash/internal/drive"
 	"github.com/paddlesteamer/cloudstash/internal/sqlite"
-	"github.com/paddlesteamer/zcache"
+	"zgo.at/zcache"
 
 	log "github.com/sirupsen/logrus"
 )
